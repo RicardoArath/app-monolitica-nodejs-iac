@@ -1,0 +1,27 @@
+<header class="topbar">
+  <div class="topbar-inner">
+    <a class="brand" href="/">📚 Librería en línea</a>
+    <nav class="main-nav">
+      <% if (currentUser) { %>
+        <a href="/">Catálogo</a>
+        <a href="/cart" class="nav-cart-link">
+          🛒 Carrito
+          <% if (typeof cartCount !== 'undefined' && cartCount > 0) { %>
+            <span class="cart-badge"><%= cartCount %></span>
+          <% } %>
+        </a>
+        <a href="/orders">Mis Pedidos</a>
+        <% if (currentUser.role === 'admin') { %>
+          <a href="/admin">Administración</a>
+        <% } %>
+        <span class="nav-user">Hola, <%= currentUser.username %> (<%= currentUser.role %>)</span>
+        <form action="/logout" method="POST" class="inline-form">
+          <button type="submit" class="link-button">Cerrar sesión</button>
+        </form>
+      <% } else { %>
+        <a href="/login">Iniciar sesión</a>
+        <a href="/register">Crear cuenta</a>
+      <% } %>
+    </nav>
+  </div>
+</header>

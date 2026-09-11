@@ -1,0 +1,56 @@
+<%- include('../partials/head') %>
+<%- include('../partials/nav') %>
+
+<main class="container">
+  <h1>Mis Pedidos</h1>
+  <%- include('../partials/flash') %>
+
+  <% if (orders.length === 0) { %>
+    <div class="empty-state-box">
+      <p>Aún no has realizado ningún pedido.</p>
+      <a href="/" class="btn btn-primary">Ir al catálogo</a>
+    </div>
+  <% } else { %>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Pedido #</th>
+          <th>Fecha</th>
+          <th>Estado del pedido</th>
+          <th>Pago simulado</th>
+          <th>Total</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <% orders.forEach(function(o) { %>
+          <tr>
+            <td><strong>#<%= o.id %></strong></td>
+            <td><%= new Date(o.created_at).toLocaleString('es-MX') %></td>
+            <td>
+              <span class="badge badge-status-<%= o.status %>">
+                <%= o.status %>
+              </span>
+            </td>
+            <td>
+              <% if (o.payment_status === 'approved') { %>
+                <span class="badge badge-success">Aprobado</span>
+              <% } else if (o.payment_status === 'rejected') { %>
+                <span class="badge badge-danger">Rechazado</span>
+              <% } else { %>
+                <span class="badge">Pendiente</span>
+              <% } %>
+            </td>
+            <td class="price">$<%= parseFloat(o.total).toFixed(2) %></td>
+            <td class="actions">
+              <a href="/orders/<%= o.id %>" class="btn btn-small btn-secondary">Ver detalle</a>
+            </td>
+          </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  <% } %>
+</main>
+
+<%- include('../partials/footer') %>
+

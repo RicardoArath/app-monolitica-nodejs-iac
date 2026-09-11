@@ -1,0 +1,27 @@
+<%- include('../partials/head') %>
+<%- include('../partials/nav') %>
+
+<main class="container narrow">
+  <h1>Crear cuenta</h1>
+  <%- include('../partials/flash') %>
+
+  <form action="/register" method="POST" class="card-form">
+    <label for="username">Usuario</label>
+    <input type="text" id="username" name="username" required minlength="3" maxlength="50" autofocus>
+
+    <label for="email">Correo electrónico</label>
+    <input type="email" id="email" name="email" required>
+
+    <label for="password">Contraseña</label>
+    <input type="password" id="password" name="password" required minlength="8">
+
+    <label for="confirmPassword">Confirmar contraseña</label>
+    <input type="password" id="confirmPassword" name="confirmPassword" required minlength="8">
+
+    <button type="submit" class="btn btn-primary">Crear cuenta</button>
+  </form>
+
+  <p>¿Ya tienes cuenta? <a href="/login">Inicia sesión</a></p>
+</main>
+
+<%- include('../partials/footer') %>

@@ -1,0 +1,91 @@
+<%- include('../partials/head') %>
+<%- include('../partials/nav') %>
+
+<main class="container">
+  <h1>Carrito de compras</h1>
+  <%- include('../partials/flash') %>
+
+  <% if (cart.items.length === 0) { %>
+    <div class="empty-cart-state">
+      <p>Tu carrito está vacío.</p>
+      <a href="/" class="btn btn-primary">Explorar catálogo</a>
+    </div>
+  <% } else { %>
+    <div class="cart-layout">
+      <div class="cart-items-section">
+        <table class="data-table cart-table">
+          <thead>
+            <tr>
+              <th>Libro</th>
+              <th>Precio</th>
+              <th>Cantidad</th>
+              <th>Total</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <% cart.items.forEach(function(item) { %>
+              <tr>
+                <td class="cart-book-cell">
+                  <% if (item.cover_image) { %>
+                    <img src="/uploads/<%= item.cover_image %>" alt="<%= item.title %>" class="cart-thumb">
+                  <% } else { %>
+                    <div class="cart-thumb-placeholder"><%= item.title.substring(0, 1) %></div>
+                  <% } %>
+                  <div>
+                    <a href="/books/<%= item.book_id %>" class="cart-book-title"><%= item.title %></a>
+                    <span class="muted small d-block">Stock disponible: <%= item.stock %></span>
+                  </div>
+                </td>
+                <td>$<%= parseFloat(item.price).toFixed(2) %></td>
+                <td>
+                  <form action="/cart/update" method="POST" class="inline-qty-form">
+                    <input type="hidden" name="bookId" value="<%= item.book_id %>">
+                    <input type="number" name="quantity" value="<%= item.quantity %>" min="1" max="<%= item.stock %>" class="qty-input">
+                    <button type="submit" class="btn btn-small btn-secondary">Actualizar</button>
+                  </form>
+                </td>
+                <td class="price">$<%= item.lineTotal.toFixed(2) %></td>
+                <td class="actions">
+                  <form action="/cart/remove" method="POST" class="inline-form" onsubmit="return confirm('¿Quitar este libro del carrito?');">
+                    <input type="hidden" name="bookId" value="<%= item.book_id %>">
+                    <button type="submit" class="link-button danger">Eliminar</button>
+                  </form>
+                </td>
+              </tr>
+            <% }); %>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="cart-summary-card">
+        <h2>Resumen del pedido</h2>
+        <div class="summary-row">
+          <span>Artículos (<%= cart.itemCount %>):</span>
+          <span>$<%= cart.total.toFixed(2) %></span>
+        </div>
+        <div class="summary-row total-row">
+          <strong>Total a pagar:</strong>
+          <strong class="price large">$<%= cart.total.toFixed(2) %></strong>
+        </div>
+
+        <div class="checkout-simulation-box">
+          <h3>Simulación de Pago</h3>
+          <p class="small muted">Este es un ejercicio académico. No se procesan tarjetas ni transacciones reales. Elige el resultado de la simulación para probar ambos flujos:</p>
+
+          <form action="/cart/checkout" method="POST" class="checkout-actions">
+            <button type="submit" name="paymentOutcome" value="approved" class="btn btn-success full-width">
+              ✓ Simular pago APROBADO
+            </button>
+            <button type="submit" name="paymentOutcome" value="rejected" class="btn btn-outline-danger full-width">
+              ✕ Simular pago RECHAZADO
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  <% } %>
+</main>
+
+<%- include('../partials/footer') %>
+

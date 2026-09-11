@@ -1,0 +1,57 @@
+<%- include('../partials/head') %>
+<%- include('../partials/nav') %>
+
+<main class="container">
+  <div class="admin-header">
+    <h1>Gestión de pedidos</h1>
+    <a class="btn btn-secondary" href="/admin">&larr; Volver al panel</a>
+  </div>
+  <%- include('../partials/flash') %>
+
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Cliente</th>
+        <th>Fecha</th>
+        <th>Estado</th>
+        <th>Pago</th>
+        <th>Total</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      <% orders.forEach(function(o) { %>
+        <tr>
+          <td><strong>#<%= o.id %></strong></td>
+          <td><%= o.username %></td>
+          <td><%= new Date(o.created_at).toLocaleString('es-MX') %></td>
+          <td>
+            <span class="badge badge-status-<%= o.status %>"><%= o.status %></span>
+          </td>
+          <td>
+            <% if (o.payment_status === 'approved') { %>
+              <span class="badge badge-success">Aprobado</span>
+            <% } else if (o.payment_status === 'rejected') { %>
+              <span class="badge badge-danger">Rechazado</span>
+            <% } else { %>
+              <span class="badge">Pendiente</span>
+            <% } %>
+          </td>
+          <td class="price">$<%= parseFloat(o.total).toFixed(2) %></td>
+          <td class="actions">
+            <a href="/admin/orders/<%= o.id %>" class="btn btn-small btn-primary">Administrar</a>
+          </td>
+        </tr>
+      <% }); %>
+      <% if (orders.length === 0) { %>
+        <tr>
+          <td colspan="7" class="empty-state">No hay pedidos registrados en el sistema.</td>
+        </tr>
+      <% } %>
+    </tbody>
+  </table>
+</main>
+
+<%- include('../partials/footer') %>
+

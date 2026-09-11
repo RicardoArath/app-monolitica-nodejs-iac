@@ -1,0 +1,91 @@
+<%- include('../partials/head') %>
+<%- include('../partials/nav') %>
+
+<main class="container">
+  <a href="/admin/orders" class="back-link">&larr; Volver a la lista de pedidos</a>
+  <h1>Administrar Pedido #<%= order.id %></h1>
+  <%- include('../partials/flash') %>
+
+  <div class="order-admin-grid">
+    <div class="card-form compact mb-20">
+      <h2>Información del pedido</h2>
+      <p><strong>Cliente:</strong> <%= order.username %> (ID de usuario: <%= order.user_id %>)</p>
+      <p><strong>Fecha:</strong> <%= new Date(order.created_at).toLocaleString('es-MX') %></p>
+      <p><strong>Última actualización:</strong> <%= new Date(order.updated_at).toLocaleString('es-MX') %></p>
+      <p><strong>Total:</strong> <span class="price large">$<%= parseFloat(order.total).toFixed(2) %></span></p>
+      <p><strong>Resultado pago:</strong>
+        <% if (order.payment_status === 'approved') { %>
+          <span class="badge badge-success">Aprobado</span>
+        <% } else if (order.payment_status === 'rejected') { %>
+          <span class="badge badge-danger">Rechazado</span>
+        <% } else { %>
+          <span class="badge">Pendiente</span>
+        <% } %>
+      </p>
+    </div>
+
+    <div class="card-form compact mb-20">
+      <h2>Actualizar estado</h2>
+      <form action="/admin/orders/<%= order.id %>/status" method="POST">
+        <label for="status">Estado del pedido:</label>
+        <select name="status" id="status" required>
+          <option value="pending" <%= order.status === 'pending' ? 'selected' : '' %>>pending (Pendiente)</option>
+          <option value="confirmed" <%= order.status === 'confirmed' ? 'selected' : '' %>>confirmed (Confirmado)</option>
+          <option value="shipped" <%= order.status === 'shipped' ? 'selected' : '' %>>shipped (Enviado)</option>
+          <option value="completed" <%= order.status === 'completed' ? 'selected' : '' %>>completed (Completado)</option>
+          <option value="cancelled" <%= order.status === 'cancelled' ? 'selected' : '' %>>cancelled (Cancelado)</option>
+        </select>
+        <button type="submit" class="btn btn-primary mt-10">Guardar nuevo estado</button>
+      </form>
+    </div>
+  </div>
+
+  <h2>Partidas del pedido</h2>
+  <table class="data-table mb-20">
+    <thead>
+      <tr>
+        <th>Libro</th>
+        <th>Precio histórico</th>
+        <th>Cantidad</th>
+        <th>Total</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% order.items.forEach(function(item) { %>
+        <tr>
+          <td>
+            <strong><%= item.title_snapshot %></strong>
+            <% if (item.book_id) { %>
+              <a href="/books/<%= item.book_id %>" class="muted small d-block">ID original: <%= item.book_id %></a>
+            <% } else { %>
+              <span class="muted small d-block">(Libro descontinuado)</span>
+            <% } %>
+          </td>
+          <td>$<%= parseFloat(item.unit_price).toFixed(2) %></td>
+          <td><%= item.quantity %></td>
+          <td class="price">$<%= parseFloat(item.line_total).toFixed(2) %></td>
+        </tr>
+      <% }); %>
+    </tbody>
+    <tfoot>
+      <tr>
+        <th colspan="3" style="text-align: right;">Total:</th>
+        <td class="price large">$<%= parseFloat(order.total).toFixed(2) %></td>
+      </tr>
+    </tfoot>
+  </table>
+
+  <% if (order.payment) { %>
+    <section class="card-form compact mb-20">
+      <h3>Datos del pago simulado</h3>
+      <p><strong>ID de pago:</strong> <%= order.payment.id %></p>
+      <p><strong>Método:</strong> <%= order.payment.method %></p>
+      <p><strong>Estado:</strong> <%= order.payment.status %></p>
+      <p><strong>Importe:</strong> $<%= parseFloat(order.payment.amount).toFixed(2) %></p>
+      <p><strong>Procesado el:</strong> <%= new Date(order.payment.processed_at).toLocaleString('es-MX') %></p>
+    </section>
+  <% } %>
+</main>
+
+<%- include('../partials/footer') %>
+

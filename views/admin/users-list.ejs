@@ -1,0 +1,25 @@
+<%- include('../partials/head') %>
+<%- include('../partials/nav') %>
+
+<main class="container">
+  <a href="/admin" class="back-link">&larr; Volver al panel</a>
+  <h1>Usuarios registrados</h1>
+  <%- include('../partials/flash') %>
+
+  <table class="data-table">
+    <thead><tr><th>Usuario</th><th>Correo</th><th>Rol</th><th>Registrado</th></tr></thead>
+    <tbody>
+      <% users.forEach(function(u) { %>
+        <tr>
+          <td><%= u.username %></td>
+          <td><%= u.email %></td>
+          <td><span class="badge <%= u.role === 'admin' ? 'badge-admin' : '' %>"><%= u.role %></span></td>
+          <td><%= new Date(u.created_at).toLocaleDateString('es-MX') %></td>
+        </tr>
+      <% }); %>
+    </tbody>
+  </table>
+  <p class="muted small">El alta de usuarios ocurre por autoservicio en /register; el administrador único no se crea desde aquí (regla de negocio protegida por índice único parcial en la base de datos).</p>
+</main>
+
+<%- include('../partials/footer') %>

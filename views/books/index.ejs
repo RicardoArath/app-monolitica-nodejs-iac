@@ -1,0 +1,43 @@
+<%- include('../partials/head') %>
+<%- include('../partials/nav') %>
+
+<main class="container">
+  <h1>Catálogo</h1>
+  <%- include('../partials/flash') %>
+
+  <form action="/" method="GET" class="search-form">
+    <input type="text" name="q" placeholder="Buscar por título o ISBN..." value="<%= term %>">
+    <button type="submit" class="btn btn-primary">Buscar</button>
+    <% if (term) { %><a href="/" class="btn btn-secondary">Limpiar</a><% } %>
+  </form>
+
+  <% if (books.length === 0) { %>
+    <p class="empty-state">No se encontraron libros<% if (term) { %> para "<%= term %>"<% } %>.</p>
+  <% } else { %>
+    <div class="book-grid">
+      <% books.forEach(function(b) { %>
+        <a class="book-card" href="/books/<%= b.id %>">
+          <% if (b.cover_image) { %>
+            <img class="book-cover-img" src="/uploads/<%= b.cover_image %>" alt="<%= b.title %>">
+          <% } else { %>
+            <div class="book-cover-placeholder"><%= b.title.substring(0, 1) %></div>
+          <% } %>
+          <h3><%= b.title %></h3>
+          <p class="muted"><%= b.authors || 'Autor desconocido' %></p>
+          <p class="price">$<%= b.price %></p>
+          <p class="muted small">ISBN <%= b.isbn %> · <%= b.format_name %></p>
+          <p class="muted small"><%= parseInt(b.stock) > 0 ? b.stock + ' en stock' : 'Sin stock' %></p>
+        </a>
+      <% }); %>
+    </div>
+
+    <nav class="pagination">
+      <% for (let p = 1; p <= totalPages; p++) { %>
+        <a class="page-link <%= p === page ? 'active' : '' %>"
+           href="/?q=<%= encodeURIComponent(term) %>&page=<%= p %>"><%= p %></a>
+      <% } %>
+    </nav>
+  <% } %>
+</main>
+
+<%- include('../partials/footer') %>

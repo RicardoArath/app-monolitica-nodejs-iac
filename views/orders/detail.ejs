@@ -1,0 +1,99 @@
+<%- include('../partials/head') %>
+<%- include('../partials/nav') %>
+
+<main class="container">
+  <a href="/orders" class="back-link">&larr; Volver a mis pedidos</a>
+  <h1>Pedido #<%= order.id %></h1>
+  <%- include('../partials/flash') %>
+
+  <div class="order-detail-meta card-form compact mb-20">
+    <div class="form-row">
+      <div>
+        <span class="muted small d-block">Fecha de creación</span>
+        <strong><%= new Date(order.created_at).toLocaleString('es-MX') %></strong>
+      </div>
+      <div>
+        <span class="muted small d-block">Estado del pedido</span>
+        <span class="badge badge-status-<%= order.status %>"><%= order.status %></span>
+      </div>
+      <div>
+        <span class="muted small d-block">Resultado pago simulado</span>
+        <% if (order.payment_status === 'approved') { %>
+          <span class="badge badge-success">Aprobado</span>
+        <% } else if (order.payment_status === 'rejected') { %>
+          <span class="badge badge-danger">Rechazado</span>
+        <% } else { %>
+          <span class="badge">Pendiente</span>
+        <% } %>
+      </div>
+      <div>
+        <span class="muted small d-block">Total del pedido</span>
+        <strong class="price large">$<%= parseFloat(order.total).toFixed(2) %></strong>
+      </div>
+    </div>
+  </div>
+
+  <h2>Partidas del pedido (Precios y datos históricos)</h2>
+  <table class="data-table mb-20">
+    <thead>
+      <tr>
+        <th>Libro</th>
+        <th>Precio unitario</th>
+        <th>Cantidad</th>
+        <th>Total</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% order.items.forEach(function(item) { %>
+        <tr>
+          <td>
+            <div class="cart-book-cell">
+              <% if (item.cover_image) { %>
+                <img src="/uploads/<%= item.cover_image %>" alt="<%= item.title_snapshot %>" class="cart-thumb">
+              <% } %>
+              <div>
+                <strong><%= item.title_snapshot %></strong>
+                <% if (item.book_id) { %>
+                  <a href="/books/<%= item.book_id %>" class="muted small d-block">Ver ficha actual del libro</a>
+                <% } else { %>
+                  <span class="muted small d-block">(Libro descontinuado del catálogo)</span>
+                <% } %>
+              </div>
+            </div>
+          </td>
+          <td>$<%= parseFloat(item.unit_price).toFixed(2) %></td>
+          <td><%= item.quantity %></td>
+          <td class="price">$<%= parseFloat(item.line_total).toFixed(2) %></td>
+        </tr>
+      <% }); %>
+    </tbody>
+    <tfoot>
+      <tr>
+        <th colspan="3" style="text-align: right;">Subtotal:</th>
+        <td class="price">$<%= parseFloat(order.subtotal).toFixed(2) %></td>
+      </tr>
+      <tr>
+        <th colspan="3" style="text-align: right;">Total pagado:</th>
+        <td class="price large">$<%= parseFloat(order.total).toFixed(2) %></td>
+      </tr>
+    </tfoot>
+  </table>
+
+  <% if (order.payment) { %>
+    <section class="card-form compact mb-20">
+      <h3>Detalle del pago simulado</h3>
+      <p><strong>Método:</strong> <%= order.payment.method %></p>
+      <p><strong>Estado:</strong> <%= order.payment.status === 'approved' ? 'Aprobado ✓' : 'Rechazado ✕' %></p>
+      <p><strong>Monto:</strong> $<%= parseFloat(order.payment.amount).toFixed(2) %></p>
+      <p><strong>Procesado el:</strong> <%= new Date(order.payment.processed_at).toLocaleString('es-MX') %></p>
+    </section>
+  <% } %>
+
+  <div class="actions">
+    <a href="/orders" class="btn btn-secondary">Mis pedidos</a>
+    <a href="/" class="btn btn-primary">Volver al catálogo</a>
+  </div>
+</main>
+
+<%- include('../partials/footer') %>
+

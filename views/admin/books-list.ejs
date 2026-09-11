@@ -1,0 +1,38 @@
+<%- include('../partials/head') %>
+<%- include('../partials/nav') %>
+
+<main class="container">
+  <div class="admin-header">
+    <h1>Administrar libros</h1>
+    <a class="btn btn-primary" href="/admin/books/new">+ Nuevo libro</a>
+  </div>
+  <%- include('../partials/flash') %>
+
+  <table class="data-table">
+    <thead>
+      <tr><th>ISBN</th><th>Título</th><th>Precio</th><th>Stock</th><th></th></tr>
+    </thead>
+    <tbody>
+      <% books.forEach(function(b) { %>
+        <tr>
+          <td><%= b.isbn %></td>
+          <td><%= b.title %></td>
+          <td>$<%= b.price %></td>
+          <td><%= b.stock %></td>
+          <td class="actions">
+            <a href="/admin/books/<%= b.id %>/edit">Editar</a>
+            <form action="/admin/books/<%= b.id %>/delete" method="POST" class="inline-form"
+                  onsubmit="return confirm('¿Eliminar este libro y toda su información asociada?');">
+              <button type="submit" class="link-button danger">Eliminar</button>
+            </form>
+          </td>
+        </tr>
+      <% }); %>
+      <% if (books.length === 0) { %>
+        <tr><td colspan="5" class="empty-state">No hay libros registrados todavía.</td></tr>
+      <% } %>
+    </tbody>
+  </table>
+</main>
+
+<%- include('../partials/footer') %>

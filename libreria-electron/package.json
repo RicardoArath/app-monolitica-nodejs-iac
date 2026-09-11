@@ -1,0 +1,12 @@
+{
+  "name": "libreria-electron",
+  "version": "1.0.0",
+  "description": "Catálogo de libros – Aplicación de escritorio Electron que consume XML",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "devDependencies": {
+    "electron": "^35.0.0"
+  }
+}

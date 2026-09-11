@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Librería en Línea – Catálogo</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- ── Header ──────────────────────────────────────────────────────── -->
+  <header class="header">
+    <div class="header-inner">
+      <div class="header-left">
+        <h1 class="logo">📚 Librería en Línea</h1>
+        <p class="subtitle">Catálogo de escritorio · Consumo exclusivo de XML</p>
+      </div>
+      <button id="settingsBtn" class="btn-icon" title="Configuración">⚙️</button>
+    </div>
+  </header>
+
+  <!-- ── Modal de Configuración ──────────────────────────────────────── -->
+  <div id="settingsModal" class="modal-overlay" style="display:none;">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>⚙️ Configuración del Microservicio</h2>
+        <button id="closeModal" class="btn-icon" title="Cerrar">✕</button>
+      </div>
+      <div class="modal-body">
+        <label class="form-label">
+          URL Base del Microservicio
+          <input type="text" id="cfgBaseUrl" class="form-input"
+                 placeholder="http://34.51.99.221:5001">
+        </label>
+        <label class="form-label">
+          Endpoint de libros
+          <input type="text" id="cfgEndpoint" class="form-input"
+                 placeholder="/books">
+        </label>
+        <div class="modal-preview">
+          <span class="label-muted">URL resultante:</span>
+          <code id="cfgPreview" class="url-preview"></code>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="cfgReset" class="btn btn-secondary">Restaurar predeterminados</button>
+        <button id="cfgSave" class="btn btn-primary">Guardar y recargar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Barra de estado ─────────────────────────────────────────────── -->
+  <section class="status-bar">
+    <div class="status-inner">
+      <span id="connectionStatus" class="status-badge">⏳ Conectando...</span>
+      <span id="sourceUrl" class="source-url"></span>
+    </div>
+  </section>
+
+  <!-- ── Barra de búsqueda ───────────────────────────────────────────── -->
+  <section class="search-bar">
+    <div class="search-inner">
+      <input type="text" id="searchInput"
+             placeholder="Filtrar por título, autor o ISBN..."
+             autocomplete="off">
+      <button id="searchBtn" class="btn btn-primary">Buscar</button>
+      <button id="clearBtn" class="btn btn-secondary" style="display:none;">Limpiar</button>
+      <button id="refreshBtn" class="btn btn-secondary" title="Recargar datos">🔄</button>
+    </div>
+    <div class="search-info">
+      <span id="resultCount"></span>
+    </div>
+  </section>
+
+  <!-- ── Grid de libros ──────────────────────────────────────────────── -->
+  <main class="catalog">
+    <div id="booksGrid" class="books-grid"></div>
+
+    <div id="loading" class="loading" style="display:none;">
+      <div class="spinner"></div>
+      <p>Cargando catálogo XML...</p>
+    </div>
+
+    <div id="errorState" class="error-state" style="display:none;">
+      <p>❌ <span id="errorMessage"></span></p>
+      <button id="retryBtn" class="btn btn-primary">Reintentar</button>
+    </div>
+
+    <div id="emptyState" class="empty-state" style="display:none;">
+      <p>📖 No se encontraron libros</p>
+    </div>
+  </main>
+
+  <!-- ── Paginación ──────────────────────────────────────────────────── -->
+  <nav id="pagination" class="pagination" style="display:none;"></nav>
+
+  <!-- ── Footer ──────────────────────────────────────────────────────── -->
+  <footer class="footer">
+    <p>Universidad de Monterrey · Integración de Aplicaciones Computacionales · 2026</p>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

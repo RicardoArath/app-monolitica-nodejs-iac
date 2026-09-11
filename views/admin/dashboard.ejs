@@ -1,0 +1,35 @@
+<%- include('../partials/head') %>
+<%- include('../partials/nav') %>
+
+<main class="container">
+  <h1>Panel de administración</h1>
+  <%- include('../partials/flash') %>
+
+  <div class="admin-grid">
+    <a class="admin-card" href="/admin/books">
+      <h2><%= counts.books %></h2><p>Libros</p>
+    </a>
+    <a class="admin-card" href="/admin/catalog/authors">
+      <h2><%= counts.authors %></h2><p>Autores</p>
+    </a>
+    <a class="admin-card" href="/admin/catalog/genres">
+      <h2><%= counts.genres %></h2><p>Géneros</p>
+    </a>
+    <a class="admin-card" href="/admin/catalog/formats">
+      <h2><%= counts.formats %></h2><p>Formatos</p>
+    </a>
+    <a class="admin-card" href="/admin/catalog/categories">
+      <h2><%= counts.categories %></h2><p>Categorías</p>
+    </a>
+    <a class="admin-card" href="/admin/users">
+      <h2><%= counts.users %></h2><p>Usuarios</p>
+    </a>
+    <a class="admin-card" href="/admin/orders">
+      <h2><%= counts.orders %></h2><p>Pedidos</p>
+    </a>
+  </div>
+
+  <p class="muted">Regla de negocio: el sistema permite un único usuario con rol "admin" (índice único parcial en la base de datos).</p>
+</main>
+
+<%- include('../partials/footer') %>

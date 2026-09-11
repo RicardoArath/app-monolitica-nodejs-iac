@@ -1,0 +1,173 @@
+<%- include('../partials/head') %>
+<%- include('../partials/nav') %>
+
+<main class="container">
+  <a href="/admin/books" class="back-link">&larr; Volver al listado</a>
+  <h1><%= book ? 'Editar libro' : 'Nuevo libro' %></h1>
+  <%- include('../partials/flash') %>
+
+  <form action="<%= book ? `/admin/books/${book.id}/edit` : '/admin/books/new' %>"
+        method="POST" class="card-form">
+
+    <label for="isbn">ISBN</label>
+    <input type="text" id="isbn" name="isbn" required maxlength="20"
+           value="<%= book ? book.isbn : '' %>">
+
+    <label for="title">Título</label>
+    <input type="text" id="title" name="title" required maxlength="250"
+           value="<%= book ? book.title : '' %>">
+
+    <div class="form-row">
+      <div>
+        <label for="year">Año de publicación</label>
+        <input type="number" id="year" name="year" min="1450" max="2100"
+               value="<%= book ? book.publication_year : '' %>">
+      </div>
+      <div>
+        <label for="price">Precio</label>
+        <input type="number" id="price" name="price" step="0.01" min="0" required
+               value="<%= book ? book.price : '' %>">
+      </div>
+      <div>
+        <label for="stock">Stock</label>
+        <input type="number" id="stock" name="stock" min="0" required
+               value="<%= book ? book.stock : 0 %>">
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div>
+        <label for="formatId">Formato</label>
+        <select id="formatId" name="formatId" required>
+          <option value="">-- Selecciona --</option>
+          <% formats.forEach(function(f) { %>
+            <option value="<%= f.id %>" <%= book && book.format_id === f.id ? 'selected' : '' %>><%= f.name %></option>
+          <% }); %>
+        </select>
+      </div>
+      <div>
+        <label for="categoryId">Categoría</label>
+        <select id="categoryId" name="categoryId" required>
+          <option value="">-- Selecciona --</option>
+          <% categories.forEach(function(c) { %>
+            <option value="<%= c.id %>" <%= book && book.category_id === c.id ? 'selected' : '' %>><%= c.name %></option>
+          <% }); %>
+        </select>
+      </div>
+    </div>
+
+    <label for="description">Descripción</label>
+    <textarea id="description" name="description" rows="4"><%= book ? (book.description || '') : '' %></textarea>
+
+    <fieldset>
+      <legend>Autores</legend>
+      <div class="checkbox-grid">
+        <% authors.forEach(function(a) { %>
+          <label class="checkbox-item">
+            <input type="checkbox" name="authorIds" value="<%= a.id %>"
+                   <%= selectedAuthorIds.includes(a.id) ? 'checked' : '' %>>
+            <%= a.name %>
+          </label>
+        <% }); %>
+      </div>
+      <p class="muted small">¿Falta un autor? <a href="/admin/catalog/authors">Adminístralos aquí</a>.</p>
+    </fieldset>
+
+    <fieldset>
+      <legend>Géneros</legend>
+      <div class="checkbox-grid">
+        <% genres.forEach(function(g) { %>
+          <label class="checkbox-item">
+            <input type="checkbox" name="genreIds" value="<%= g.id %>"
+                   <%= selectedGenreIds.includes(g.id) ? 'checked' : '' %>>
+            <%= g.name %>
+          </label>
+        <% }); %>
+      </div>
+      <p class="muted small">¿Falta un género? <a href="/admin/catalog/genres">Adminístralos aquí</a>.</p>
+    </fieldset>
+
+    <button type="submit" class="btn btn-primary"><%= book ? 'Guardar cambios' : 'Crear libro' %></button>
+  </form>
+
+  <% if (book) { %>
+    <section class="sub-section">
+      <h2>Conceptos definidos en este libro</h2>
+      <table class="data-table">
+        <thead><tr><th>Concepto</th><th>Definición</th><th></th></tr></thead>
+        <thead><tr><th>Concepto</th><th>Definición</th><th>Capítulo</th><th>Página</th><th></th></tr></thead>
+        <tbody>
+          <% book.concepts.forEach(function(c) { %>
+            <tr>
+              <td><input type="text" name="name" form="concept-edit-<%= c.id %>" value="<%= c.name %>" required></td>
+              <td><input type="text" name="definition" form="concept-edit-<%= c.id %>" value="<%= c.definition %>" required></td>
+              <td><input type="text" name="chapter" form="concept-edit-<%= c.id %>" value="<%= c.chapter || '' %>" placeholder="Ej: Cap. 3"></td>
+              <td><input type="number" name="pageNumber" form="concept-edit-<%= c.id %>" value="<%= c.page_number || '' %>" min="1" style="width:70px"></td>
+              <td class="actions">
+                <button type="submit" form="concept-edit-<%= c.id %>" class="link-button">Guardar</button>
+                <button type="submit" form="concept-delete-<%= c.id %>" class="link-button danger"
+                        onclick="return confirm('¿Eliminar este concepto?');">Eliminar</button>
+              </td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+
+      <!-- Formularios asociados a las filas de arriba mediante el atributo form="" -->
+      <% book.concepts.forEach(function(c) { %>
+        <form id="concept-edit-<%= c.id %>" action="/admin/books/<%= book.id %>/concepts/<%= c.id %>/edit" method="POST"></form>
+        <form id="concept-delete-<%= c.id %>" action="/admin/books/<%= book.id %>/concepts/<%= c.id %>/delete" method="POST"></form>
+      <% }); %>
+
+      <form action="/admin/books/<%= book.id %>/concepts" method="POST" class="card-form compact">
+        <div class="form-row">
+          <input type="text" name="name" placeholder="Nombre del concepto" required>
+          <input type="text" name="definition" placeholder="Definición" required>
+        </div>
+        <div class="form-row">
+          <input type="text" name="chapter" placeholder="Capítulo (opcional)">
+          <input type="number" name="pageNumber" placeholder="Página (opcional)" min="1">
+          <button type="submit" class="btn btn-secondary">Agregar concepto</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="sub-section">
+      <h2>Imágenes</h2>
+      <div class="image-gallery">
+        <% book.images.forEach(function(img) { %>
+          <div class="image-item">
+            <img src="/uploads/<%= img.filename %>" alt="Imagen de <%= book.title %>" onerror="this.style.opacity=0.3">
+            <img src="/uploads/<%= img.filename %>" alt="<%= img.alt_text %>" onerror="this.style.opacity=0.3">
+            <p class="muted small"><%= img.alt_text %></p>
+            <p class="muted small"><%= img.mime_type %><%= img.is_primary ? ' · principal' : '' %></p>
+            <div class="image-actions">
+              <% if (!img.is_primary) { %>
+                <form action="/admin/books/<%= book.id %>/images/<%= img.id %>/primary" method="POST" class="inline-form">
+                  <button type="submit" class="link-button">Marcar principal</button>
+                </form>
+              <% } %>
+              <form action="/admin/books/<%= book.id %>/images/<%= img.id %>/delete" method="POST" class="inline-form"
+                    onsubmit="return confirm('¿Eliminar esta imagen?');">
+                <button type="submit" class="link-button danger">Eliminar</button>
+              </form>
+            </div>
+          </div>
+        <% }); %>
+      </div>
+
+      <form action="/admin/books/<%= book.id %>/images" method="POST" enctype="multipart/form-data" class="card-form compact">
+        <label for="image">Subir imagen (JPG, PNG o WebP)</label>
+        <input type="file" id="image" name="image" accept="image/jpeg,image/png,image/webp" required>
+        <label for="altText">Texto alternativo (descripción de la imagen)</label>
+        <input type="text" id="altText" name="altText" placeholder="Ej: Portada del libro Cloud Computing" required maxlength="255">
+        <label class="checkbox-item"><input type="checkbox" name="isPrimary"> Marcar como imagen principal</label>
+        <button type="submit" class="btn btn-secondary">Subir imagen</button>
+      </form>
+    </section>
+  <% } else { %>
+    <p class="muted">Guarda el libro primero para poder agregar conceptos e imágenes.</p>
+  <% } %>
+</main>
+
+<%- include('../partials/footer') %>

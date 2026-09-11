@@ -1,0 +1,44 @@
+<%- include('../partials/head') %>
+<%- include('../partials/nav') %>
+
+<main class="container narrow">
+  <a href="/admin" class="back-link">&larr; Volver al panel</a>
+  <h1><%= label %></h1>
+  <%- include('../partials/flash') %>
+
+  <table class="data-table">
+    <thead><tr><th>Nombre</th><th></th></tr></thead>
+    <tbody>
+      <% items.forEach(function(item) { %>
+        <tr>
+          <td>
+            <input type="text" name="name" value="<%= item.name %>" form="edit-<%= item.id %>" required>
+          </td>
+          <td class="actions">
+            <button type="submit" form="edit-<%= item.id %>" class="link-button">Guardar</button>
+            <button type="submit" form="delete-<%= item.id %>" class="link-button danger"
+                    onclick="return confirm('¿Eliminar este registro?');">Eliminar</button>
+          </td>
+        </tr>
+      <% }); %>
+      <% if (items.length === 0) { %>
+        <tr><td colspan="2" class="empty-state">Todavía no hay registros.</td></tr>
+      <% } %>
+    </tbody>
+  </table>
+
+  <% items.forEach(function(item) { %>
+    <form id="edit-<%= item.id %>" action="/admin/catalog/<%= table %>/<%= item.id %>/edit" method="POST"></form>
+    <form id="delete-<%= item.id %>" action="/admin/catalog/<%= table %>/<%= item.id %>/delete" method="POST"></form>
+  <% }); %>
+
+  <section class="sub-section">
+    <h2>Agregar nuevo</h2>
+    <form action="/admin/catalog/<%= table %>/new" method="POST" class="card-form compact">
+      <input type="text" name="name" placeholder="Nombre" required>
+      <button type="submit" class="btn btn-primary">Agregar</button>
+    </form>
+  </section>
+</main>
+
+<%- include('../partials/footer') %>

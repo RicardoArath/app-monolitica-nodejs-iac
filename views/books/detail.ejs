@@ -1,0 +1,78 @@
+<%- include('../partials/head') %>
+<%- include('../partials/nav') %>
+
+<main class="container">
+  <a href="/" class="back-link">&larr; Volver al catálogo</a>
+  <%- include('../partials/flash') %>
+
+  <div class="book-detail">
+    <div class="book-detail-images">
+      <% if (book.images.length === 0) { %>
+        <div class="book-cover-placeholder large"><%= book.title.substring(0, 1) %></div>
+      <% } else { %>
+        <% book.images.forEach(function(img) { %>
+          <img class="book-image <%= img.is_primary ? 'primary' : '' %>"
+               src="/uploads/<%= img.filename %>" alt="<%= img.alt_text %>"
+               onerror="this.style.display='none'">
+        <% }); %>
+      <% } %>
+    </div>
+
+    <div class="book-detail-info">
+      <h1><%= book.title %></h1>
+      <p class="muted">ISBN: <%= book.isbn %> · <%= book.publication_year || 's/f' %></p>
+      <p class="price large">$<%= book.price %></p>
+      <p><%= parseInt(book.stock, 10) > 0 ? book.stock + ' unidades disponibles' : 'Sin stock disponible' %></p>
+
+      <% if (parseInt(book.stock, 10) > 0) { %>
+        <form action="/cart/add" method="POST" class="add-to-cart-form card-form compact">
+          <input type="hidden" name="bookId" value="<%= book.id %>">
+          <div class="form-row align-center">
+            <label for="quantity">Cantidad:</label>
+            <input type="number" id="quantity" name="quantity" value="1" min="1" max="<%= book.stock %>" class="qty-input" required>
+            <button type="submit" class="btn btn-primary">🛒 Agregar al carrito</button>
+          </div>
+        </form>
+      <% } else { %>
+        <p class="badge badge-danger d-inline-block">Agotado temporalmente</p>
+      <% } %>
+
+      <table class="meta-table">
+        <tr><th>Autores</th><td><%= book.authors.map(a => a.name).join(', ') || '—' %></td></tr>
+        <tr><th>Géneros</th><td><%= book.genres.map(g => g.name).join(', ') || '—' %></td></tr>
+        <tr><th>Formato</th><td><%= book.format_name %></td></tr>
+        <tr><th>Categoría</th><td><%= book.category_name %></td></tr>
+      </table>
+
+      <% if (book.description) { %>
+        <h2>Descripción</h2>
+        <p><%= book.description %></p>
+      <% } %>
+
+      <% if (book.concepts.length > 0) { %>
+        <h2>Conceptos clave</h2>
+        <dl class="concept-list">
+          <% book.concepts.forEach(function(c) { %>
+            <dt><%= c.name %></dt>
+            <dd>
+              <%= c.definition %>
+              <% if (c.chapter || c.page_number) { %>
+                <span class="muted small">
+                  (<%= c.chapter ? c.chapter : '' %><%= c.chapter && c.page_number ? ', ' : '' %><%= c.page_number ? 'p. ' + c.page_number : '' %>)
+                </span>
+              <% } %>
+            </dd>
+          <% }); %>
+        </dl>
+      <% } %>
+
+      <% if (currentUser && currentUser.role === 'admin') { %>
+        <div class="mt-20">
+          <a class="btn btn-secondary" href="/admin/books/<%= book.id %>/edit">Editar este libro (Admin)</a>
+        </div>
+      <% } %>
+    </div>
+  </div>
+</main>
+
+<%- include('../partials/footer') %>
