@@ -130,9 +130,9 @@ FROM books b;
 INSERT INTO book_images (book_id, filename, mime_type, alt_text, is_primary)
 SELECT
     b.id,
-    'seed-book-' || b.id || '.jpg',
-    'image/jpeg',
-    'Portada del libro sintético número ' || b.id,
+    'cover-book-' || b.id || '.png',
+    'image/png',
+    'Portada del libro ' || b.title,
     true
 FROM books b;
 

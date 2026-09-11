@@ -25,7 +25,7 @@ from datetime import datetime
 import xml.etree.ElementTree as ET
 from xml.dom import minidom
 
-from flask import Flask, request, Response
+from flask import Flask, request, Response, send_from_directory
 from dotenv import load_dotenv
 import psycopg2
 import psycopg2.extras
@@ -163,6 +163,15 @@ def _books_list_to_xml(books, lang='es'):
 
         if b.get('description'):
             ET.SubElement(book_el, 'description').text = b['description']
+
+        if b.get('images'):
+            images_el = ET.SubElement(book_el, 'images')
+            for img in b['images']:
+                ET.SubElement(images_el, 'image',
+                               attrib={'filename': img['filename'],
+                                       'uri': f"/uploads/{img['filename']}",
+                                       'mime_type': img['mime_type'],
+                                       'is_primary': str(img['is_primary']).lower()})
 
     return root
 
@@ -325,6 +334,16 @@ def get_books():
             """)
             books = [dict(r) for r in cur.fetchall()]
 
+            # Cargar imágenes asociadas a cada libro
+            for book in books:
+                cur.execute("""
+                    SELECT filename, mime_type, is_primary
+                    FROM book_images
+                    WHERE book_id = %s
+                    ORDER BY is_primary DESC, id
+                """, (book['id'],))
+                book['images'] = [dict(img) for img in cur.fetchall()]
+
         fmt = _get_format()
         if fmt == 'json':
             return _respond_json(books)
@@ -466,6 +485,14 @@ def get_books_with_images():
             return _respond_xml(_books_with_images_to_xml(result))
     finally:
         conn.close()
+
+
+# ── 5. GET /uploads/<filename> ──────────────────────────────────────────
+@app.route('/uploads/<path:filename>', methods=['GET'])
+def serve_upload(filename):
+    """Sirve las imágenes estáticas de los libros directamente desde el microservicio."""
+    uploads_dir = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'public', 'uploads')
+    return send_from_directory(os.path.abspath(uploads_dir), filename)
 
 
 # ══════════════════════════════════════════════════════════════════════════

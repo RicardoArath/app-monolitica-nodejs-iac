@@ -1,5 +1,4 @@
 node_modules/
 .env
-public/uploads/*
-!public/uploads/.gitkeep
+!public/uploads/cover-book-*.png
 npm-debug.log
