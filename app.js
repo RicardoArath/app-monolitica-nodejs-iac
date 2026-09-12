@@ -76,7 +76,7 @@ app.use((err, req, res, next) => { // eslint-disable-line no-unused-vars
 });
 
 const PORT = process.env.PORT || 3000;
-const HOST = '127.0.0.1';
+const HOST = process.env.HOST || '0.0.0.0';
 app.listen(PORT, HOST, () => {
   console.log(`Librería en línea escuchando en http://${HOST}:${PORT}`);
 });
