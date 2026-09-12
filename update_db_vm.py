@@ -53,6 +53,7 @@ def main():
     cur = conn.cursor()
 
     cur.execute("ALTER TABLE book_images ADD COLUMN IF NOT EXISTS alt_text VARCHAR(255);")
+    cur.execute("ALTER TABLE book_concepts ADD COLUMN IF NOT EXISTS chapter VARCHAR(100), ADD COLUMN IF NOT EXISTS page_number INT CHECK (page_number IS NULL OR page_number > 0);")
 
     for book_id, title, desc in BOOKS:
         cur.execute("UPDATE books SET title = %s, description = %s WHERE id = %s", (title, desc, book_id))
@@ -70,3 +71,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+

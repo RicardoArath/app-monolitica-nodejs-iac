@@ -86,7 +86,14 @@ async function migrate() {
       );
     `);
 
-    console.log('   ✔ Tablas creadas');
+    // Columnas faltantes en tablas existentes
+    await client.query(`
+      ALTER TABLE book_concepts 
+        ADD COLUMN IF NOT EXISTS chapter VARCHAR(100),
+        ADD COLUMN IF NOT EXISTS page_number INT CHECK (page_number IS NULL OR page_number > 0);
+    `);
+
+    console.log('   ✔ Tablas creadas y actualizadas');
 
     // =====================================================================
     // 2. TRIGGERS (CREATE OR REPLACE + DROP IF EXISTS = idempotente)
