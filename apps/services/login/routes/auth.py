@@ -1,0 +1,436 @@
+"""
+routes/auth.py
+Endpoints de autenticación: /register, /login, /logout, /verify-email
+"""
+import random
+import re
+import secrets
+import unicodedata
+from datetime import datetime, timezone, timedelta
+
+import bcrypt
+from flask import Blueprint, request, session
+
+from db import get_connection
+from helpers.response import make_response_format
+from helpers.mailer import send_verification_email
+
+auth_bp = Blueprint('auth', __name__)
+
+# Regex para validar formato de email
+EMAIL_REGEX = re.compile(
+    r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$'
+)
+
+# Duración del token de verificación
+TOKEN_EXPIRY_HOURS = 24
+
+
+def _normalize_for_username(text):
+    """Elimina acentos y caracteres especiales para generar un username limpio."""
+    nfkd = unicodedata.normalize('NFKD', text)
+    ascii_text = nfkd.encode('ascii', 'ignore').decode('ascii')
+    return ascii_text.lower().strip()
+
+
+def _generate_username(nombre, apellido_paterno):
+    """
+    Genera un username único tipo 'juan.perez'.
+    Si ya existe, agrega sufijo numérico: 'juan.perez2', 'juan.perez3', etc.
+    """
+    base_nombre = _normalize_for_username(nombre)
+    base_apellido = _normalize_for_username(apellido_paterno)
+    base_username = f"{base_nombre}.{base_apellido}"
+
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            # Verificar si el username base está disponible
+            cur.execute(
+                "SELECT COUNT(*) FROM users WHERE username = %s",
+                (base_username,)
+            )
+            count = cur.fetchone()[0]
+            if count == 0:
+                return base_username
+
+            # Buscar el mayor sufijo existente
+            cur.execute(
+                "SELECT username FROM users WHERE username LIKE %s",
+                (f"{base_username}%",)
+            )
+            existing = [row[0] for row in cur.fetchall()]
+
+            suffix = 2
+            while f"{base_username}{suffix}" in existing:
+                suffix += 1
+            return f"{base_username}{suffix}"
+
+
+# -----------------------------------------------------------------
+# GET /captcha
+# -----------------------------------------------------------------
+@auth_bp.route('/captcha', methods=['GET'])
+def get_captcha():
+    """Generar un desafío CAPTCHA para verificación humana."""
+    num1 = random.randint(1, 15)
+    num2 = random.randint(1, 15)
+    question = f"¿Cuánto es {num1} + {num2}?"
+    answer = str(num1 + num2)
+    captcha_id = secrets.token_urlsafe(24)
+    expires_at = datetime.now(timezone.utc) + timedelta(minutes=5)
+
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """INSERT INTO captcha_challenges (id, question, answer, expires_at)
+                   VALUES (%s, %s, %s, %s)""",
+                (captcha_id, question, answer, expires_at)
+            )
+            conn.commit()
+
+    return make_response_format({
+        'status': 'success',
+        'captcha_id': captcha_id,
+        'challenge': question,
+        'expires_in_seconds': 300
+    }, 200, request)
+
+
+# -----------------------------------------------------------------
+# POST /register
+# -----------------------------------------------------------------
+@auth_bp.route('/register', methods=['POST'])
+def register():
+    """Registrar un nuevo usuario y enviar email de verificación."""
+    # Aceptar datos como JSON o form-data
+    if request.is_json:
+        data = request.get_json(silent=True) or {}
+    else:
+        data = request.form.to_dict()
+
+    nombre = data.get('nombre', '').strip()
+    apellido_paterno = data.get('apellido_paterno', '').strip()
+    apellido_materno = data.get('apellido_materno', '').strip()
+    email = data.get('email', '').strip().lower()
+    password = data.get('password', '')
+    captcha_id = data.get('captcha_id', '').strip()
+    captcha_answer = str(data.get('captcha_answer', '')).strip()
+
+    # --- Validaciones ---
+    errors = []
+    if not nombre:
+        errors.append('El campo nombre es obligatorio.')
+    if not apellido_paterno:
+        errors.append('El campo apellido_paterno es obligatorio.')
+    if not email:
+        errors.append('El campo email es obligatorio.')
+    elif not EMAIL_REGEX.match(email):
+        errors.append('El formato del email no es válido.')
+    if not password:
+        errors.append('El campo password es obligatorio.')
+    elif len(password) < 8:
+        errors.append('La contraseña debe tener al menos 8 caracteres.')
+    # Verificación de humano (si se envía captcha)
+    if captcha_id or captcha_answer:
+        if not captcha_id or not captcha_answer:
+            errors.append('Para verificación de humano se requieren ambos campos: captcha_id y captcha_answer.')
+
+    if errors:
+        return make_response_format({
+            'status': 'error',
+            'errors': errors
+        }, 400, request)
+
+    # --- Validar CAPTCHA contra la BD (si se proporcionó) ---
+    if captcha_id and captcha_answer:
+        now = datetime.now(timezone.utc)
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """SELECT answer, expires_at, used
+                       FROM captcha_challenges
+                       WHERE id = %s""",
+                    (captcha_id,)
+                )
+                row = cur.fetchone()
+
+                if row is None:
+                    return make_response_format({
+                        'status': 'error',
+                        'message': 'El captcha_id no existe. Solicite uno nuevo con GET /captcha.'
+                    }, 400, request)
+
+                db_answer, db_expires, db_used = row
+                if db_expires.tzinfo is None:
+                    db_expires = db_expires.replace(tzinfo=timezone.utc)
+
+                if db_used:
+                    return make_response_format({
+                        'status': 'error',
+                        'message': 'Este CAPTCHA ya fue utilizado. Solicite uno nuevo con GET /captcha.'
+                    }, 400, request)
+
+                if now > db_expires:
+                    return make_response_format({
+                        'status': 'error',
+                        'message': 'El CAPTCHA ha expirado. Solicite uno nuevo con GET /captcha.'
+                    }, 400, request)
+
+                if captcha_answer != db_answer:
+                    return make_response_format({
+                        'status': 'error',
+                        'message': 'Verificación de humano fallida: la respuesta al CAPTCHA es incorrecta.'
+                    }, 400, request)
+
+                # Marcar captcha como usado
+                cur.execute(
+                    "UPDATE captcha_challenges SET used = true WHERE id = %s",
+                    (captcha_id,)
+                )
+                conn.commit()
+
+    # --- Verificar unicidad de email ---
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT id FROM users WHERE email = %s", (email,))
+            if cur.fetchone():
+                return make_response_format({
+                    'status': 'error',
+                    'message': 'El email ya está registrado.'
+                }, 409, request)
+
+    # --- Generar username automático ---
+    username = _generate_username(nombre, apellido_paterno)
+
+    # --- Hash de contraseña (bcrypt, compatible con bcryptjs de Node.js) ---
+    password_hash = bcrypt.hashpw(
+        password.encode('utf-8'),
+        bcrypt.gensalt(rounds=10)
+    ).decode('utf-8')
+
+    # --- Insertar usuario vía stored procedure ---
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT sp_register_user(%s, %s, %s, %s, %s, %s)",
+                (username, email, password_hash,
+                 nombre, apellido_paterno, apellido_materno or None)
+            )
+            user_id = cur.fetchone()[0]
+
+            # --- Generar token de verificación ---
+            token = secrets.token_urlsafe(64)
+            expires_at = datetime.now(timezone.utc) + timedelta(
+                hours=TOKEN_EXPIRY_HOURS
+            )
+            cur.execute(
+                """INSERT INTO email_verification_tokens
+                   (user_id, token, expires_at)
+                   VALUES (%s, %s, %s)""",
+                (user_id, token, expires_at)
+            )
+            conn.commit()
+
+    # --- Enviar email de verificación vía Postfix ---
+    try:
+        send_verification_email(email, token, nombre)
+    except Exception as e:
+        # El usuario se creó, pero el correo falló.
+        # No revertimos el registro; el usuario puede solicitar reenvío.
+        return make_response_format({
+            'status': 'warning',
+            'message': (
+                'Usuario registrado, pero no se pudo enviar el correo '
+                'de verificación. Contacte al administrador.'
+            ),
+            'user_id': user_id,
+            'username': username,
+            'mail_error': str(e)
+        }, 201, request)
+
+    return make_response_format({
+        'status': 'success',
+        'message': (
+            'Registro exitoso. Revise su correo electrónico para '
+            'verificar su cuenta.'
+        ),
+        'user_id': user_id,
+        'username': username
+    }, 201, request)
+
+
+# -----------------------------------------------------------------
+# GET /verify-email?token=xxx
+# -----------------------------------------------------------------
+@auth_bp.route('/verify-email', methods=['GET'])
+def verify_email():
+    """Verificar email del usuario mediante token."""
+    token = request.args.get('token', '').strip()
+
+    if not token:
+        return make_response_format({
+            'status': 'error',
+            'message': 'Token de verificación no proporcionado.'
+        }, 400, request)
+
+    now = datetime.now(timezone.utc)
+
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            # Buscar token válido
+            cur.execute(
+                """SELECT id, user_id, expires_at, used
+                   FROM email_verification_tokens
+                   WHERE token = %s""",
+                (token,)
+            )
+            row = cur.fetchone()
+
+            if row is None:
+                return make_response_format({
+                    'status': 'error',
+                    'message': 'Token de verificación inválido.'
+                }, 400, request)
+
+            token_id, user_id, expires_at, used = row
+
+            if used:
+                return make_response_format({
+                    'status': 'error',
+                    'message': 'Este token ya fue utilizado.'
+                }, 400, request)
+
+            # Asegurar timezone-awareness para comparar
+            if expires_at.tzinfo is None:
+                expires_at = expires_at.replace(tzinfo=timezone.utc)
+
+            if now > expires_at:
+                return make_response_format({
+                    'status': 'error',
+                    'message': (
+                        'El token de verificación ha expirado. '
+                        'Solicite uno nuevo.'
+                    )
+                }, 400, request)
+
+            # Activar cuenta
+            cur.execute(
+                "UPDATE users SET email_verified = true WHERE id = %s",
+                (user_id,)
+            )
+            cur.execute(
+                "UPDATE email_verification_tokens SET used = true WHERE id = %s",
+                (token_id,)
+            )
+            conn.commit()
+
+    return make_response_format({
+        'status': 'success',
+        'message': 'Email verificado exitosamente. Ya puede iniciar sesión.'
+    }, 200, request)
+
+
+# -----------------------------------------------------------------
+# POST /login
+# -----------------------------------------------------------------
+@auth_bp.route('/login', methods=['POST'])
+def login():
+    """Autenticar usuario e iniciar sesión."""
+    if request.is_json:
+        data = request.get_json(silent=True) or {}
+    else:
+        data = request.form.to_dict()
+
+    email = data.get('email', '').strip().lower()
+    password = data.get('password', '')
+
+    if not email or not password:
+        return make_response_format({
+            'status': 'error',
+            'message': 'Email y password son obligatorios.'
+        }, 400, request)
+
+    # Buscar usuario por email
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """SELECT id, username, email, password_hash, role,
+                          nombre, apellido_paterno, apellido_materno,
+                          email_verified
+                   FROM users WHERE email = %s""",
+                (email,)
+            )
+            row = cur.fetchone()
+
+    if row is None:
+        return make_response_format({
+            'status': 'error',
+            'message': 'Credenciales inválidas.'
+        }, 401, request)
+
+    (user_id, username, user_email, password_hash, role,
+     nombre, apellido_paterno, apellido_materno, email_verified) = row
+
+    # Verificar contraseña
+    if not bcrypt.checkpw(
+        password.encode('utf-8'),
+        password_hash.encode('utf-8')
+    ):
+        return make_response_format({
+            'status': 'error',
+            'message': 'Credenciales inválidas.'
+        }, 401, request)
+
+    # Verificar que el email esté confirmado
+    if not email_verified:
+        return make_response_format({
+            'status': 'error',
+            'message': (
+                'Su email no ha sido verificado. '
+                'Revise su correo electrónico.'
+            )
+        }, 403, request)
+
+    # Crear sesión Flask
+    session.clear()
+    session['user_id'] = user_id
+    session['username'] = username
+    session['email'] = user_email
+    session['role'] = role
+    session['nombre'] = nombre
+    session['last_activity'] = datetime.now(timezone.utc).isoformat()
+
+    return make_response_format({
+        'status': 'success',
+        'message': 'Inicio de sesión exitoso.',
+        'user': {
+            'id': user_id,
+            'username': username,
+            'email': user_email,
+            'nombre': nombre,
+            'apellido_paterno': apellido_paterno,
+            'apellido_materno': apellido_materno,
+            'role': role
+        }
+    }, 200, request)
+
+
+# -----------------------------------------------------------------
+# POST /logout
+# -----------------------------------------------------------------
+@auth_bp.route('/logout', methods=['POST'])
+def logout():
+    """Cerrar la sesión del usuario."""
+    if 'user_id' not in session:
+        return make_response_format({
+            'status': 'error',
+            'message': 'No hay sesión activa.'
+        }, 401, request)
+
+    session.clear()
+
+    return make_response_format({
+        'status': 'success',
+        'message': 'Sesión cerrada exitosamente.'
+    }, 200, request)
+

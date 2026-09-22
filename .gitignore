@@ -1,5 +1,29 @@
+# Node.js
 node_modules/
+npm-debug.log*
+
+# Environment
 .env
+*.env
+.env.*
+!.env.example
+apps/**/.env
+
+# Python
+venv/
+env/
+ENV/
+apps/**/venv/
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Static uploads
 !public/uploads/cover-book-*.jpg
 !public/uploads/cover-book-*.png
-npm-debug.log
+
+# Archives
+*.tar.gz
+*.zip

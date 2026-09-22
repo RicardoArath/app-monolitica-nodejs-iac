@@ -1,0 +1,467 @@
+openapi: "3.0.3"
+
+info:
+  title: Auth Microservice — Librería en Línea
+  description: |
+    Microservicio de autenticación y gestión de usuarios para la plataforma
+    de librería en línea. Soporta respuestas en **XML** (por defecto) y
+    **JSON** mediante el parámetro `?format=json`.
+
+    ## Verificación de email
+    Al registrarse, se envía un correo de verificación vía Postfix local.
+    La cuenta permanece inactiva hasta que el usuario confirme su email.
+
+    ## Sesiones
+    Las sesiones tienen un tiempo de vida configurable (30 min por defecto).
+    Cuando quedan menos de 5 minutos, `GET /session` retorna `status: expiring`
+    para que el cliente pregunte al usuario si desea continuar.
+  version: "1.0.0"
+  contact:
+    name: Librería en Línea
+    email: admin@libreria.local
+
+servers:
+  - url: /
+    description: Servidor actual
+  - url: http://34.9.197.191:5000
+    description: Servidor GCP
+
+# =====================================================================
+# Parámetro reutilizable: ?format=
+# =====================================================================
+components:
+  parameters:
+    FormatParam:
+      name: format
+      in: query
+      required: false
+      description: |
+        Formato de respuesta. Si no se especifica, el valor por defecto es `xml`.
+      schema:
+        type: string
+        enum: [xml, json]
+        default: xml
+
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: error
+        message:
+          type: string
+          example: Descripción del error.
+
+    UserInfo:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 5
+        username:
+          type: string
+          example: juan.perez
+        email:
+          type: string
+          example: juan.perez@correo.com
+        nombre:
+          type: string
+          example: Juan
+        apellido_paterno:
+          type: string
+          example: Pérez
+        apellido_materno:
+          type: string
+          example: López
+        role:
+          type: string
+          example: user
+
+# =====================================================================
+# Endpoints
+# =====================================================================
+paths:
+
+  # -------------------------------------------------------------------
+  # GET /captcha
+  # -------------------------------------------------------------------
+  /captcha:
+    get:
+      summary: Obtener reto CAPTCHA para verificación humana
+      description: |
+        Genera un desafío matemático sencillo (ej. suma de dos números)
+        para verificar que el usuario que intenta registrarse es un humano.
+        Retorna `captcha_id` que debe enviarse en `POST /register`.
+        Expira en 5 minutos.
+      tags: [Autenticación]
+      parameters:
+        - $ref: "#/components/parameters/FormatParam"
+      responses:
+        "200":
+          description: Desafío generado exitosamente.
+          content:
+            application/xml:
+              example: |
+                <?xml version="1.0" encoding="UTF-8"?>
+                <response>
+                  <status>success</status>
+                  <captcha_id>e8k1j9aK_2xY...</captcha_id>
+                  <challenge>¿Cuánto es 8 + 5?</challenge>
+                  <expires_in_seconds>300</expires_in_seconds>
+                </response>
+            application/json:
+              example:
+                status: success
+                captcha_id: "e8k1j9aK_2xY..."
+                challenge: "¿Cuánto es 8 + 5?"
+                expires_in_seconds: 300
+
+  # -------------------------------------------------------------------
+  # POST /register
+  # -------------------------------------------------------------------
+  /register:
+    post:
+      summary: Registrar un nuevo usuario
+      description: |
+        Crea un nuevo usuario y envía un correo de verificación vía Postfix.
+        Requiere resolver previamente el reto de verificación humana obtenido con `GET /captcha`.
+        La cuenta permanece inactiva hasta que el email sea verificado.
+      tags: [Autenticación]
+      parameters:
+        - $ref: "#/components/parameters/FormatParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [nombre, apellido_paterno, email, password]
+              properties:
+                nombre:
+                  type: string
+                  example: Juan
+                apellido_paterno:
+                  type: string
+                  example: Pérez
+                apellido_materno:
+                  type: string
+                  example: López
+                  description: Opcional
+                email:
+                  type: string
+                  format: email
+                  example: juan.perez@correo.com
+                password:
+                  type: string
+                  format: password
+                  minLength: 8
+                  example: MiPassword123
+                captcha_id:
+                  type: string
+                  description: Opcional. ID obtenido previamente con GET /captcha
+                  example: ""
+                captcha_answer:
+                  type: string
+                  description: Opcional. Respuesta al reto matemático
+                  example: ""
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [nombre, apellido_paterno, email, password]
+              properties:
+                nombre:
+                  type: string
+                apellido_paterno:
+                  type: string
+                apellido_materno:
+                  type: string
+                email:
+                  type: string
+                password:
+                  type: string
+                captcha_id:
+                  type: string
+                captcha_answer:
+                  type: string
+      responses:
+        "201":
+          description: Usuario registrado. Revise su correo para verificar.
+          content:
+            application/xml:
+              example: |
+                <?xml version="1.0" encoding="UTF-8"?>
+                <response>
+                  <status>success</status>
+                  <message>Registro exitoso. Revise su correo electrónico para verificar su cuenta.</message>
+                  <user_id>5</user_id>
+                  <username>juan.perez</username>
+                </response>
+            application/json:
+              example:
+                status: success
+                message: Registro exitoso. Revise su correo electrónico para verificar su cuenta.
+                user_id: 5
+                username: juan.perez
+        "400":
+          description: Error de validación.
+        "409":
+          description: El email ya está registrado.
+
+  # -------------------------------------------------------------------
+  # GET /verify-email
+  # -------------------------------------------------------------------
+  /verify-email:
+    get:
+      summary: Verificar email del usuario
+      description: |
+        Confirma el email del usuario mediante un token enviado por correo.
+        Activa la cuenta para permitir el inicio de sesión.
+      tags: [Autenticación]
+      parameters:
+        - name: token
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Token de verificación recibido por correo.
+        - $ref: "#/components/parameters/FormatParam"
+      responses:
+        "200":
+          description: Email verificado exitosamente.
+          content:
+            application/xml:
+              example: |
+                <?xml version="1.0" encoding="UTF-8"?>
+                <response>
+                  <status>success</status>
+                  <message>Email verificado exitosamente. Ya puede iniciar sesión.</message>
+                </response>
+            application/json:
+              example:
+                status: success
+                message: Email verificado exitosamente. Ya puede iniciar sesión.
+        "400":
+          description: Token inválido, expirado o ya utilizado.
+
+  # -------------------------------------------------------------------
+  # POST /login
+  # -------------------------------------------------------------------
+  /login:
+    post:
+      summary: Autenticar al usuario e iniciar sesión
+      description: |
+        Verifica credenciales contra PostgreSQL. Si son correctas y el email
+        está verificado, crea una sesión de Flask (cookie httpOnly).
+      tags: [Autenticación]
+      parameters:
+        - $ref: "#/components/parameters/FormatParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: juan.perez@correo.com
+                password:
+                  type: string
+                  format: password
+                  example: MiPassword123
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                password:
+                  type: string
+      responses:
+        "200":
+          description: Login exitoso. Se establece cookie de sesión.
+          content:
+            application/xml:
+              example: |
+                <?xml version="1.0" encoding="UTF-8"?>
+                <response>
+                  <status>success</status>
+                  <message>Inicio de sesión exitoso.</message>
+                  <user>
+                    <id>5</id>
+                    <username>juan.perez</username>
+                    <email>juan.perez@correo.com</email>
+                    <nombre>Juan</nombre>
+                    <apellido_paterno>Pérez</apellido_paterno>
+                    <apellido_materno>López</apellido_materno>
+                    <role>user</role>
+                  </user>
+                </response>
+            application/json:
+              example:
+                status: success
+                message: Inicio de sesión exitoso.
+                user:
+                  id: 5
+                  username: juan.perez
+                  email: juan.perez@correo.com
+                  nombre: Juan
+                  apellido_paterno: Pérez
+                  apellido_materno: López
+                  role: user
+        "400":
+          description: Campos obligatorios faltantes.
+        "401":
+          description: Credenciales inválidas.
+        "403":
+          description: Email no verificado.
+
+  # -------------------------------------------------------------------
+  # POST /logout
+  # -------------------------------------------------------------------
+  /logout:
+    post:
+      summary: Cerrar la sesión
+      description: Limpia la sesión de Flask.
+      tags: [Autenticación]
+      parameters:
+        - $ref: "#/components/parameters/FormatParam"
+      responses:
+        "200":
+          description: Sesión cerrada exitosamente.
+          content:
+            application/xml:
+              example: |
+                <?xml version="1.0" encoding="UTF-8"?>
+                <response>
+                  <status>success</status>
+                  <message>Sesión cerrada exitosamente.</message>
+                </response>
+            application/json:
+              example:
+                status: success
+                message: Sesión cerrada exitosamente.
+        "401":
+          description: No hay sesión activa.
+
+  # -------------------------------------------------------------------
+  # GET /session
+  # -------------------------------------------------------------------
+  /session:
+    get:
+      summary: Consultar estado de la sesión
+      description: |
+        Retorna información de la sesión activa, incluyendo tiempo restante
+        y estado (`active` o `expiring`). Si quedan menos de 5 minutos,
+        el status es `expiring` con un mensaje de aviso.
+      tags: [Sesión]
+      parameters:
+        - $ref: "#/components/parameters/FormatParam"
+      responses:
+        "200":
+          description: Sesión activa.
+          content:
+            application/xml:
+              example: |
+                <?xml version="1.0" encoding="UTF-8"?>
+                <response>
+                  <status>active</status>
+                  <message>Sesión activa.</message>
+                  <remaining_seconds>1547</remaining_seconds>
+                  <session_lifetime_minutes>30</session_lifetime_minutes>
+                  <user>
+                    <id>5</id>
+                    <username>juan.perez</username>
+                    <email>juan.perez@correo.com</email>
+                    <nombre>Juan</nombre>
+                    <role>user</role>
+                  </user>
+                </response>
+            application/json:
+              example:
+                status: expiring
+                message: "Su sesión expirará pronto. ¿Desea continuar?"
+                remaining_seconds: 247
+                session_lifetime_minutes: 30
+                user:
+                  id: 5
+                  username: juan.perez
+                  email: juan.perez@correo.com
+                  nombre: Juan
+                  role: user
+        "401":
+          description: No hay sesión activa.
+        "440":
+          description: Sesión expirada por inactividad.
+
+  # -------------------------------------------------------------------
+  # POST /session/renew
+  # -------------------------------------------------------------------
+  /session/renew:
+    post:
+      summary: Renovar la sesión
+      description: |
+        El usuario confirma que desea continuar. Resetea el timer de
+        inactividad al máximo configurado.
+      tags: [Sesión]
+      parameters:
+        - $ref: "#/components/parameters/FormatParam"
+      responses:
+        "200":
+          description: Sesión renovada.
+          content:
+            application/xml:
+              example: |
+                <?xml version="1.0" encoding="UTF-8"?>
+                <response>
+                  <status>success</status>
+                  <message>Sesión renovada exitosamente.</message>
+                  <remaining_seconds>1800</remaining_seconds>
+                  <session_lifetime_minutes>30</session_lifetime_minutes>
+                </response>
+            application/json:
+              example:
+                status: success
+                message: Sesión renovada exitosamente.
+                remaining_seconds: 1800
+                session_lifetime_minutes: 30
+        "401":
+          description: No hay sesión activa para renovar.
+
+  # -------------------------------------------------------------------
+  # GET /health
+  # -------------------------------------------------------------------
+  /health:
+    get:
+      summary: Verificar estado del microservicio
+      description: |
+        Retorna el estado del microservicio y la conectividad a PostgreSQL.
+      tags: [Sistema]
+      parameters:
+        - $ref: "#/components/parameters/FormatParam"
+      responses:
+        "200":
+          description: Servicio operativo.
+          content:
+            application/xml:
+              example: |
+                <?xml version="1.0" encoding="UTF-8"?>
+                <response>
+                  <status>ok</status>
+                  <service>auth-microservice</service>
+                  <database>connected</database>
+                  <timestamp>2026-09-18T14:50:00+00:00</timestamp>
+                </response>
+            application/json:
+              example:
+                status: ok
+                service: auth-microservice
+                database: connected
+                timestamp: "2026-09-18T14:50:00+00:00"
+        "503":
+          description: Servicio degradado (sin conexión a BD).
+
