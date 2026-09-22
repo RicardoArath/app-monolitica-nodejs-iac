@@ -86,6 +86,7 @@ async function migrate() {
       );
     `);
 
+    console.log('   ✔ Tablas creadas');
     // Columnas faltantes en tablas existentes
     await client.query(`
       ALTER TABLE book_concepts 
