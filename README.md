@@ -133,3 +133,46 @@ actores y criterios de aceptación. Consulta
 justificación de arquitectura, datos, seguridad, archivos, compra y
 despliegue. [`docs/DECISIONES.md`](docs/DECISIONES.md) conserva el documento
 inicial de decisiones y contexto del diseño.
+
+---
+
+## 8. Microservicio de Autenticación (`apps/services/login`)
+
+Microservicio independiente desarrollado en **Python, Flask, Psycopg 3 y PostgreSQL** en el puerto **5000**. Expone respuestas polimórficas tanto en **XML (por defecto)** como en **JSON** (`?format=json`).
+
+### Endpoints principales
+
+| Método | Endpoint | Descripción | Formato |
+|---|---|---|---|
+| `POST` | `/register` | Registrar nuevo usuario (bcrypt + Postfix) | XML / JSON |
+| `GET`  | `/verify-email` | Confirmación de cuenta mediante token unívoco | XML / JSON |
+| `POST` | `/login` | Autenticación y creación de sesión en Flask | XML / JSON |
+| `POST` | `/logout` | Cierre y destrucción de sesión | XML / JSON |
+| `GET`  | `/session` | Consulta de sesión activa y tiempo restante (sliding window) | XML / JSON |
+| `POST` | `/session/renew` | Renovación atómica de sesión activa | XML / JSON |
+| `GET`  | `/captcha` | Desafío matemático para verificación de humano | XML / JSON |
+| `GET`  | `/health` | Estado del microservicio y conectividad con PostgreSQL | XML / JSON |
+
+### Documentación Interactiva
+* **Swagger UI:** `http://localhost:5000/docs/` (o en la IP pública de GCP)
+* **OpenAPI 3.0 Spec:** `apps/services/login/swagger/swagger.yaml`
+
+### Puesta en marcha local
+
+```bash
+# 1. Aplicar migración de base de datos
+psql -U libreria_app -h localhost -d libreria_online -f db/07_migration_auth_service.sql
+
+# 2. Entorno virtual e instalación
+cd apps/services/login
+python -m venv venv
+source venv/bin/activate  # En Windows: .\venv\Scripts\activate
+pip install -r requirements.txt
+
+# 3. Configurar variables de entorno
+cp .env.example .env
+
+# 4. Iniciar servicio
+python app.py
+```
+
