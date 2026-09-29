@@ -433,6 +433,79 @@ paths:
           description: No hay sesión activa para renovar.
 
   # -------------------------------------------------------------------
+  # POST /session/extend
+  # -------------------------------------------------------------------
+  /session/extend:
+    post:
+      summary: Extender la sesión
+      description: |
+        Extiende el tiempo de vida de la sesión activa del usuario.
+        Equivalente a /session/renew.
+      tags: [Sesión]
+      parameters:
+        - $ref: "#/components/parameters/FormatParam"
+      responses:
+        "200":
+          description: Sesión extendida exitosamente.
+          content:
+            application/json:
+              example:
+                status: success
+                message: Sesión renovada exitosamente.
+                remaining_seconds: 1800
+                session_lifetime_minutes: 30
+        "401":
+          description: No hay sesión activa.
+
+  # -------------------------------------------------------------------
+  # GET y PATCH /profile
+  # -------------------------------------------------------------------
+  /profile:
+    get:
+      summary: Consultar el perfil del usuario autenticado
+      tags: [Perfil]
+      parameters:
+        - $ref: "#/components/parameters/FormatParam"
+      responses:
+        "200":
+          description: Perfil obtenido exitosamente.
+        "401":
+          description: No autenticado.
+    patch:
+      summary: Actualizar campos del perfil del usuario
+      description: Permite modificar nombre, apellidos, correo o contraseña.
+      tags: [Perfil]
+      parameters:
+        - $ref: "#/components/parameters/FormatParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                nombre:
+                  type: string
+                apellido_paterno:
+                  type: string
+                apellido_materno:
+                  type: string
+                email:
+                  type: string
+                password:
+                  type: string
+      responses:
+        "200":
+          description: Perfil actualizado.
+        "400":
+          description: Datos inválidos.
+        "401":
+          description: No autenticado.
+        "409":
+          description: Correo ya registrado por otro usuario.
+
+
+  # -------------------------------------------------------------------
   # GET /health
   # -------------------------------------------------------------------
   /health:

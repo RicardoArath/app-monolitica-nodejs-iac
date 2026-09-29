@@ -79,9 +79,10 @@ def get_session():
 
 
 # -----------------------------------------------------------------
-# POST /session/renew
+# POST /session/renew and POST /session/extend
 # -----------------------------------------------------------------
 @session_bp.route('/session/renew', methods=['POST'])
+@session_bp.route('/session/extend', methods=['POST'])
 def renew_session():
     """Renovar la sesión (el usuario confirma que desea continuar)."""
     if 'user_id' not in session:

@@ -10,10 +10,12 @@ from datetime import datetime, timezone, timedelta
 
 import bcrypt
 from flask import Blueprint, request, session
+import jwt
 
 from db import get_connection
 from helpers.response import make_response_format
 from helpers.mailer import send_verification_email
+from config import JWT_SECRET, JWT_EXPIRY_MINUTES
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -260,9 +262,10 @@ def register():
 
 
 # -----------------------------------------------------------------
-# GET /verify-email?token=xxx
+# GET /verify-email?token=xxx and GET /verify?token=xxx
 # -----------------------------------------------------------------
 @auth_bp.route('/verify-email', methods=['GET'])
+@auth_bp.route('/verify', methods=['GET'])
 def verify_email():
     """Verificar email del usuario mediante token."""
     token = request.args.get('token', '').strip()
@@ -400,9 +403,32 @@ def login():
     session['nombre'] = nombre
     session['last_activity'] = datetime.now(timezone.utc).isoformat()
 
+    # --- Generar JWT ---
+    jwt_payload = {
+        'sub': user_id,
+        'username': username,
+        'email': user_email,
+        'role': role,
+        'nombre': nombre,
+        'iat': datetime.now(timezone.utc),
+        'exp': datetime.now(timezone.utc) + timedelta(minutes=JWT_EXPIRY_MINUTES)
+    }
+    token = jwt.encode(jwt_payload, JWT_SECRET, algorithm='HS256')
+
+    # --- Log en consola ---
+    print(f"\n{'='*60}")
+    print(f"[JWT] ✅ TOKEN EMITIDO para usuario: {username} ({user_email})")
+    print(f"[JWT]    user_id: {user_id} | role: {role}")
+    print(f"[JWT]    expira en: {JWT_EXPIRY_MINUTES} minutos")
+    print(f"[JWT]    token: {token[:50]}...")
+    print(f"{'='*60}\n")
+
     return make_response_format({
         'status': 'success',
         'message': 'Inicio de sesión exitoso.',
+        'token': token,
+        'token_type': 'Bearer',
+        'expires_in': JWT_EXPIRY_MINUTES * 60,
         'user': {
             'id': user_id,
             'username': username,
@@ -433,4 +459,166 @@ def logout():
         'status': 'success',
         'message': 'Sesión cerrada exitosamente.'
     }, 200, request)
+
+
+# -----------------------------------------------------------------
+# GET and PATCH /profile
+# -----------------------------------------------------------------
+@auth_bp.route('/profile', methods=['GET', 'PATCH'])
+def profile():
+    """Consultar o actualizar el perfil del usuario autenticado (soporta JWT o sesión)."""
+    user_id = None
+
+    # 1. Intentar autenticar mediante JWT (Authorization: Bearer <token>)
+    auth_header = request.headers.get('Authorization', '')
+    if auth_header.startswith('Bearer '):
+        token = auth_header[7:].strip()
+        try:
+            payload = jwt.decode(token, JWT_SECRET, algorithms=['HS256'])
+            user_id = payload.get('sub')
+            print(f"[JWT] ✅ /profile — Autenticado vía JWT para usuario ID: {user_id}")
+        except jwt.ExpiredSignatureError:
+            print(f"[JWT] ⏰ /profile — Token JWT expirado")
+            return make_response_format({
+                'status': 'error',
+                'message': 'Token JWT expirado. Inicie sesión nuevamente.'
+            }, 401, request)
+        except jwt.InvalidTokenError as e:
+            print(f"[JWT] ❌ /profile — Token JWT inválido: {e}")
+            return make_response_format({
+                'status': 'error',
+                'message': f'Token JWT inválido: {e}'
+            }, 401, request)
+
+    # 2. Fallback a sesión Flask
+    if not user_id and 'user_id' in session:
+        user_id = session['user_id']
+
+    if not user_id:
+        return make_response_format({
+            'status': 'error',
+            'message': 'No hay sesión activa ni token JWT válido. Acceso no autorizado.'
+        }, 401, request)
+
+    if request.method == 'GET':
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """SELECT id, username, email, role,
+                              nombre, apellido_paterno, apellido_materno, created_at
+                       FROM users WHERE id = %s""",
+                    (user_id,)
+                )
+                row = cur.fetchone()
+
+        if not row:
+            return make_response_format({
+                'status': 'error',
+                'message': 'Usuario no encontrado.'
+            }, 404, request)
+
+        return make_response_format({
+            'status': 'success',
+            'user': {
+                'id': row[0],
+                'username': row[1],
+                'email': row[2],
+                'role': row[3],
+                'nombre': row[4],
+                'apellido_paterno': row[5],
+                'apellido_materno': row[6],
+                'created_at': row[7].isoformat() if row[7] else None
+            }
+        }, 200, request)
+
+    # --- PATCH: Actualización parcial del perfil ---
+    data = request.get_json(silent=True) or request.form.to_dict() or {}
+
+    updates = []
+    params = []
+
+    # Nombre
+    if 'nombre' in data:
+        nombre_val = str(data['nombre']).strip()
+        updates.append("nombre = %s")
+        params.append(nombre_val)
+        session['nombre'] = nombre_val
+
+    # Apellidos
+    if 'apellido_paterno' in data:
+        ap_val = str(data['apellido_paterno']).strip()
+        updates.append("apellido_paterno = %s")
+        params.append(ap_val)
+        session['apellido_paterno'] = ap_val
+
+    if 'apellido_materno' in data:
+        am_val = str(data['apellido_materno']).strip()
+        updates.append("apellido_materno = %s")
+        params.append(am_val)
+        session['apellido_materno'] = am_val
+
+    # Email
+    if 'email' in data:
+        new_email = str(data['email']).strip().lower()
+        if not EMAIL_REGEX.match(new_email):
+            return make_response_format({
+                'status': 'error',
+                'message': 'El formato del email no es válido.'
+            }, 400, request)
+
+        # Validar si ya lo usa otro usuario
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT id FROM users WHERE email = %s AND id != %s", (new_email, user_id))
+                if cur.fetchone():
+                    return make_response_format({
+                        'status': 'error',
+                        'message': 'El correo electrónico ya está registrado por otro usuario.'
+                    }, 409, request)
+
+        updates.append("email = %s")
+        params.append(new_email)
+        session['email'] = new_email
+
+    # Contraseña
+    if 'password' in data and data['password']:
+        new_pass = str(data['password'])
+        if len(new_pass) < 8:
+            return make_response_format({
+                'status': 'error',
+                'message': 'La contraseña debe tener al menos 8 caracteres.'
+            }, 400, request)
+        pwd_hash = bcrypt.hashpw(new_pass.encode('utf-8'), bcrypt.gensalt(rounds=10)).decode('utf-8')
+        updates.append("password_hash = %s")
+        params.append(pwd_hash)
+
+    if not updates:
+        return make_response_format({
+            'status': 'warning',
+            'message': 'No se enviaron campos para actualizar.'
+        }, 200, request)
+
+    params.append(user_id)
+    sql = f"UPDATE users SET {', '.join(updates)} WHERE id = %s RETURNING id, username, email, role, nombre, apellido_paterno, apellido_materno"
+
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(sql, params)
+            row = cur.fetchone()
+            conn.commit()
+
+    return make_response_format({
+        'status': 'success',
+        'message': 'Perfil actualizado correctamente.',
+        'user': {
+            'id': row[0],
+            'username': row[1],
+            'email': row[2],
+            'role': row[3],
+            'nombre': row[4],
+            'apellido_paterno': row[5],
+            'apellido_materno': row[6]
+        }
+    }, 200, request)
+
 

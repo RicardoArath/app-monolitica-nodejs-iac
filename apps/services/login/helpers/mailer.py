@@ -58,6 +58,6 @@ def send_verification_email(to_email, token, nombre):
     msg.attach(MIMEText(text_body, 'plain', 'utf-8'))
     msg.attach(MIMEText(html_body, 'html', 'utf-8'))
 
-    with smtplib.SMTP(MAIL_SMTP_HOST, MAIL_SMTP_PORT) as server:
+    with smtplib.SMTP(MAIL_SMTP_HOST, MAIL_SMTP_PORT, timeout=3.0) as server:
         server.send_message(msg)
 

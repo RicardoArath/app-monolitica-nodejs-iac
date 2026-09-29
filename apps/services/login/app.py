@@ -7,12 +7,13 @@ from flask import Flask
 from flask_cors import CORS
 from flask_swagger_ui import get_swaggerui_blueprint
 
-from config import PORT, SESSION_SECRET, SESSION_LIFETIME_MINUTES
+from config import PORT, SESSION_SECRET, SESSION_LIFETIME_MINUTES, JWT_SECRET, JWT_EXPIRY_MINUTES
 from db import open_pool, close_pool
 from middleware.session_guard import register_session_guard
 from routes.auth import auth_bp
 from routes.session import session_bp
 from routes.health import health_bp
+from routes.token import token_bp
 
 import atexit
 
@@ -41,6 +42,7 @@ def create_app():
     app.register_blueprint(auth_bp)
     app.register_blueprint(session_bp)
     app.register_blueprint(health_bp)
+    app.register_blueprint(token_bp)
 
     # --- Swagger UI ---
     swagger_ui_bp = get_swaggerui_blueprint(
@@ -94,7 +96,11 @@ def create_app():
 
 if __name__ == '__main__':
     app = create_app()
-    print(f"Auth microservice escuchando en http://0.0.0.0:{PORT}")
-    print(f"Swagger UI disponible en http://localhost:{PORT}/docs")
+    print(f"\n{'='*60}")
+    print(f"  Auth microservice escuchando en http://0.0.0.0:{PORT}")
+    print(f"  Swagger UI disponible en http://localhost:{PORT}/docs")
+    print(f"  🔐 JWT habilitado: HS256 | Expiración: {JWT_EXPIRY_MINUTES} min")
+    print(f"  Endpoints JWT: POST /token/verify, POST /token/refresh")
+    print(f"{'='*60}\n")
     app.run(host='0.0.0.0', port=PORT, debug=True)
 

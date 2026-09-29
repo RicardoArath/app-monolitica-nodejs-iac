@@ -16,11 +16,13 @@ PUBLIC_PATHS = frozenset([
     '/register',
     '/login',
     '/verify-email',
+    '/verify',
     '/captcha',
     '/health',
     '/docs',
     '/swagger',
     '/static',
+    '/token',
 ])
 
 
