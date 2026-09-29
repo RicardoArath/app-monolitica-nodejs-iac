@@ -35,6 +35,10 @@
 | **21** | Tolerancia a fallos: detención de servicio | `GET` | `/health` (books) | `Error (0) / 503` | Conmutación de semáforo a 🔴 Rojo sin crasheo ni cierre inesperado del programa. | `18_caso_b_books_detenido_rojo.png` |
 | **22** | Tolerancia a fallos: restauración de servicio | `GET` | `/health` (books) | `200 OK` | Reconexión automática tras `systemctl start`, semáforo restaurado a 🟢 Verde. | `19_caso_c_books_recuperado_verde.png` |
 | **23** | Diagnóstico de conectividad en configuración | `GET` | `/health` | `200 OK` | Comprobación y persistencia de URLs en `config.json` (Local vs GCP). | `20_pantalla_configuracion_servidor.png` |
+| **24** | Inicio de sesión y captura de credenciales | `POST` | `/login` | `Formulario` | Interfaz de login con ingreso de credenciales de administrador para emisión de JWT. | `21_jwt_login_ventana_autenticacion.png` |
+| **25** | Emisión, almacenamiento y persistencia de JWT | `POST` | `/login` | `200 OK` | Emisión exitosa de JWT (`HS256`), almacenamiento en `ApiClient` y persistencia en `session.json`. | `22_jwt_emision_almacenamiento_consola.png` |
+| **26** | Operación de escritura protegida con JWT exitosa | `POST` | `/books` | `201 Created` | Creación de libro enviando `Authorization: Bearer <token>`; validación y log en consola. | *(Pendiente captura POST/consola)* |
+| **27** | Intento de escritura sin token JWT rechazado | `POST` | `/books` | `401 Unauthorized` | Petición sin token interceptada por `@jwt_required`, retornando HTTP 401 controlado. | *(Pendiente captura 401)* |
 
 ---
 
