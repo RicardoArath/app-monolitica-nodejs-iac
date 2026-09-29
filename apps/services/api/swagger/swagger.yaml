@@ -1,0 +1,162 @@
+openapi: 3.0.3
+info:
+  title: API Microservice - Libreria en Linea
+  version: 1.0.0
+  description: Microservicio para operaciones CRUD del catalogo.
+
+servers:
+  - url: /
+    description: Relativo (host actual)
+  - url: http://35.193.230.144:5001
+    description: Servidor de despliegue
+
+components:
+  parameters:
+    FormatParam:
+      name: format
+      in: query
+      description: Formato de respuesta (xml o json). Predeterminado xml.
+      required: false
+      schema:
+        type: string
+        enum: [xml, json]
+        default: xml
+
+paths:
+  /health:
+    get:
+      summary: Health check
+      parameters:
+        - $ref: '#/components/parameters/FormatParam'
+      responses:
+        '200':
+          description: OK
+
+  /api/books:
+    get:
+      summary: Listar libros
+      parameters:
+        - $ref: '#/components/parameters/FormatParam'
+      responses:
+        '200':
+          description: OK
+    post:
+      summary: Crear libro
+      parameters:
+        - $ref: '#/components/parameters/FormatParam'
+      responses:
+        '201':
+          description: Created
+
+  /api/books/{id}:
+    get:
+      summary: Detalle de libro
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - $ref: '#/components/parameters/FormatParam'
+      responses:
+        '200':
+          description: OK
+    put:
+      summary: Actualizar libro
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - $ref: '#/components/parameters/FormatParam'
+      responses:
+        '200':
+          description: OK
+    delete:
+      summary: Eliminar libro
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - $ref: '#/components/parameters/FormatParam'
+      responses:
+        '200':
+          description: OK
+
+  /api/users:
+    get:
+      summary: Listar usuarios
+      parameters:
+        - $ref: '#/components/parameters/FormatParam'
+      responses:
+        '200':
+          description: OK
+
+  /api/{table}:
+    get:
+      summary: Listar catalogo
+      parameters:
+        - name: table
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [authors, genres, formats, categories]
+        - $ref: '#/components/parameters/FormatParam'
+      responses:
+        '200':
+          description: OK
+    post:
+      summary: Crear item de catalogo
+      parameters:
+        - name: table
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [authors, genres, formats, categories]
+        - $ref: '#/components/parameters/FormatParam'
+      responses:
+        '201':
+          description: Created
+
+  /api/{table}/{id}:
+    put:
+      summary: Actualizar item de catalogo
+      parameters:
+        - name: table
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [authors, genres, formats, categories]
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - $ref: '#/components/parameters/FormatParam'
+      responses:
+        '200':
+          description: OK
+    delete:
+      summary: Eliminar item de catalogo
+      parameters:
+        - name: table
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [authors, genres, formats, categories]
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - $ref: '#/components/parameters/FormatParam'
+      responses:
+        '200':
+          description: OK
