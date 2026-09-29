@@ -19,9 +19,9 @@ DEFAULT_REMOTE_BOOKS = "http://34.171.172.238:5001"
 
 class Settings:
     def __init__(self):
-        # Por defecto inicializa apuntando a la nube GCP
-        self.auth_url = DEFAULT_REMOTE_AUTH
-        self.books_url = DEFAULT_REMOTE_BOOKS
+        # Inicializa apuntando al entorno Local (servicios activos)
+        self.auth_url = DEFAULT_LOCAL_AUTH
+        self.books_url = DEFAULT_LOCAL_BOOKS
         self.load()
 
     def load(self):

@@ -1,8 +1,8 @@
 """
 routes/token.py
-Endpoints para verificación y renovación de tokens JWT.
-POST /token/verify  — Valida un JWT y retorna su payload.
-POST /token/refresh — Emite un nuevo JWT con expiración renovada.
+Endpoints para verificacion y renovacion de tokens JWT.
+POST /token/verify  -- Valida un JWT y retorna su payload.
+POST /token/refresh -- Emite un nuevo JWT con expiracion renovada.
 """
 from datetime import datetime, timezone, timedelta
 
@@ -20,29 +20,28 @@ token_bp = Blueprint('token', __name__)
 # -----------------------------------------------------------------
 @token_bp.route('/token/verify', methods=['POST'])
 def verify_token():
-    """Valida un JWT y retorna los datos del payload si es válido."""
+    """Valida un JWT y retorna los datos del payload si es valido."""
     data = request.get_json(silent=True) or {}
     token = data.get('token', '').strip()
 
     if not token:
-        # Intentar extraer del header Authorization
         auth_header = request.headers.get('Authorization', '')
         if auth_header.startswith('Bearer '):
             token = auth_header[7:].strip()
 
     if not token:
-        print(f"[JWT] ❌ /token/verify — No se proporcionó token")
+        print("[JWT] [ERROR] /token/verify -- No se proporciono token")
         return make_response_format({
             'status': 'error',
-            'message': 'Token no proporcionado. Envíe {"token": "..."} o header Authorization: Bearer <token>.'
+            'message': 'Token no proporcionado. Envie {"token": "..."} o header Authorization: Bearer <token>.'
         }, 400, request)
 
     try:
         payload = jwt.decode(token, JWT_SECRET, algorithms=['HS256'])
-        print(f"[JWT] ✅ /token/verify — Token VÁLIDO para usuario: {payload.get('username')} (sub={payload.get('sub')})")
+        print(f"[JWT] [OK] /token/verify -- Token VALIDO para usuario: {payload.get('username')} (sub={payload.get('sub')})")
         return make_response_format({
             'status': 'success',
-            'message': 'Token JWT válido.',
+            'message': 'Token JWT valido.',
             'payload': {
                 'sub': payload.get('sub'),
                 'username': payload.get('username'),
@@ -55,17 +54,17 @@ def verify_token():
         }, 200, request)
 
     except jwt.ExpiredSignatureError:
-        print(f"[JWT] ⏰ /token/verify — Token EXPIRADO")
+        print("[JWT] [EXPIRED] /token/verify -- Token EXPIRADO")
         return make_response_format({
             'status': 'error',
-            'message': 'El token JWT ha expirado. Inicie sesión nuevamente para obtener uno nuevo.'
+            'message': 'El token JWT ha expirado. Inicie sesion nuevamente para obtener uno nuevo.'
         }, 401, request)
 
     except jwt.InvalidTokenError as e:
-        print(f"[JWT] ❌ /token/verify — Token INVÁLIDO: {str(e)}")
+        print(f"[JWT] [ERROR] /token/verify -- Token INVALIDO: {str(e)}")
         return make_response_format({
             'status': 'error',
-            'message': f'Token JWT inválido: {str(e)}'
+            'message': f'Token JWT invalido: {str(e)}'
         }, 401, request)
 
 
@@ -74,7 +73,7 @@ def verify_token():
 # -----------------------------------------------------------------
 @token_bp.route('/token/refresh', methods=['POST'])
 def refresh_token():
-    """Renueva un JWT válido (no expirado) emitiendo uno nuevo con expiración extendida."""
+    """Renueva un JWT valido (no expirado) emitiendo uno nuevo con expiracion extendida."""
     data = request.get_json(silent=True) or {}
     token = data.get('token', '').strip()
 
@@ -84,7 +83,7 @@ def refresh_token():
             token = auth_header[7:].strip()
 
     if not token:
-        print(f"[JWT] ❌ /token/refresh — No se proporcionó token")
+        print("[JWT] [ERROR] /token/refresh -- No se proporciono token")
         return make_response_format({
             'status': 'error',
             'message': 'Token no proporcionado.'
@@ -93,9 +92,8 @@ def refresh_token():
     try:
         payload = jwt.decode(token, JWT_SECRET, algorithms=['HS256'])
 
-        # Generar nuevo token con expiración renovada
         new_payload = {
-            'sub': payload['sub'],
+            'sub': str(payload['sub']),
             'username': payload.get('username'),
             'email': payload.get('email'),
             'role': payload.get('role'),
@@ -106,9 +104,9 @@ def refresh_token():
         new_token = jwt.encode(new_payload, JWT_SECRET, algorithm='HS256')
 
         print(f"\n{'='*60}")
-        print(f"[JWT] 🔄 TOKEN RENOVADO para usuario: {payload.get('username')}")
-        print(f"[JWT]    nueva expiración: {JWT_EXPIRY_MINUTES} minutos")
-        print(f"[JWT]    nuevo token: {new_token[:50]}...")
+        print(f"[JWT] [RENEW] TOKEN RENOVADO para usuario: {payload.get('username')}")
+        print(f"[JWT]         nueva expiracion: {JWT_EXPIRY_MINUTES} minutos")
+        print(f"[JWT]         nuevo token: {new_token[:50]}...")
         print(f"{'='*60}\n")
 
         return make_response_format({
@@ -120,15 +118,15 @@ def refresh_token():
         }, 200, request)
 
     except jwt.ExpiredSignatureError:
-        print(f"[JWT] ⏰ /token/refresh — Token EXPIRADO, no se puede renovar")
+        print("[JWT] [EXPIRED] /token/refresh -- Token EXPIRADO, no se puede renovar")
         return make_response_format({
             'status': 'error',
-            'message': 'El token ha expirado. Inicie sesión nuevamente.'
+            'message': 'El token ha expirado. Inicie sesion nuevamente.'
         }, 401, request)
 
     except jwt.InvalidTokenError as e:
-        print(f"[JWT] ❌ /token/refresh — Token INVÁLIDO: {str(e)}")
+        print(f"[JWT] [ERROR] /token/refresh -- Token INVALIDO: {str(e)}")
         return make_response_format({
             'status': 'error',
-            'message': f'Token JWT inválido: {str(e)}'
+            'message': f'Token JWT invalido: {str(e)}'
         }, 401, request)

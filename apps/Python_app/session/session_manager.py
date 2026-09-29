@@ -29,7 +29,7 @@ class SessionManager:
         try:
             with open(SESSION_FILE, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2)
-            print(f"[SESSION-MANAGER] 💾 Sesión guardada localmente (con JWT: {'Sí' if jwt_token else 'No'})")
+            print(f"[SESSION-MANAGER] [SAVE] Sesion guardada localmente (con JWT: {'Si' if jwt_token else 'No'})")
             return True
         except Exception as e:
             print(f"Error al guardar session.json: {e}")
@@ -48,7 +48,7 @@ class SessionManager:
                 if jwt_token:
                     http_client.set_jwt(jwt_token)
                 self.user = data.get("user")
-                print(f"[SESSION-MANAGER] 📂 Sesión recuperada desde caché (con JWT: {'Sí' if jwt_token else 'No'})")
+                print(f"[SESSION-MANAGER] [LOAD] Sesion recuperada desde cache (con JWT: {'Si' if jwt_token else 'No'})")
                 return self.user
         except Exception as e:
             print(f"Error al cargar session.json: {e}")

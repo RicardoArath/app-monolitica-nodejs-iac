@@ -405,7 +405,7 @@ def login():
 
     # --- Generar JWT ---
     jwt_payload = {
-        'sub': user_id,
+        'sub': str(user_id),
         'username': username,
         'email': user_email,
         'role': role,
@@ -417,7 +417,7 @@ def login():
 
     # --- Log en consola ---
     print(f"\n{'='*60}")
-    print(f"[JWT] ✅ TOKEN EMITIDO para usuario: {username} ({user_email})")
+    print(f"[JWT] [OK] TOKEN EMITIDO para usuario: {username} ({user_email})")
     print(f"[JWT]    user_id: {user_id} | role: {role}")
     print(f"[JWT]    expira en: {JWT_EXPIRY_MINUTES} minutos")
     print(f"[JWT]    token: {token[:50]}...")
@@ -476,18 +476,18 @@ def profile():
         try:
             payload = jwt.decode(token, JWT_SECRET, algorithms=['HS256'])
             user_id = payload.get('sub')
-            print(f"[JWT] ✅ /profile — Autenticado vía JWT para usuario ID: {user_id}")
+            print(f"[JWT] [OK] /profile -- Autenticado via JWT para usuario ID: {user_id}")
         except jwt.ExpiredSignatureError:
-            print(f"[JWT] ⏰ /profile — Token JWT expirado")
+            print(f"[JWT] [EXPIRED] /profile -- Token JWT expirado")
             return make_response_format({
                 'status': 'error',
-                'message': 'Token JWT expirado. Inicie sesión nuevamente.'
+                'message': 'Token JWT expirado. Inicie sesion nuevamente.'
             }, 401, request)
         except jwt.InvalidTokenError as e:
-            print(f"[JWT] ❌ /profile — Token JWT inválido: {e}")
+            print(f"[JWT] [ERROR] /profile -- Token JWT invalido: {e}")
             return make_response_format({
                 'status': 'error',
-                'message': f'Token JWT inválido: {e}'
+                'message': f'Token JWT invalido: {e}'
             }, 401, request)
 
     # 2. Fallback a sesión Flask

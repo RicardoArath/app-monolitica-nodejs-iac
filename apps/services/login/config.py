@@ -31,5 +31,5 @@ MAIL_SMTP_PORT = int(os.getenv('MAIL_SMTP_PORT', '25'))
 BASE_URL = os.getenv('BASE_URL', 'http://localhost:5000')
 
 # --- JWT ---
-JWT_SECRET = os.getenv('JWT_SECRET', 'libreria-jwt-secret-2026-seguro')
+JWT_SECRET = os.getenv('JWT_SECRET', 'libreria-jwt-secret-2026-seguro-key-32b')
 JWT_EXPIRY_MINUTES = int(os.getenv('JWT_EXPIRY_MINUTES', '60'))

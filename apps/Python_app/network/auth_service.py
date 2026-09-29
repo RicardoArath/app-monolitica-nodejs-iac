@@ -1,6 +1,6 @@
 """
 network/auth_service.py
-Servicio de comunicación con el microservicio de autenticación (services/login en puerto 5000).
+Servicio de comunicacion con el microservicio de autenticacion (services/login en puerto 5000).
 Maneja JWT: al hacer login exitoso, extrae y almacena el token JWT.
 """
 from config.settings import settings
@@ -18,7 +18,7 @@ class AuthService:
         return http_client.request("GET", url, timeout=(5.0, 10.0))
 
     def get_captcha(self):
-        """Obtiene un desafío matemático para verificación humana (GET /captcha)."""
+        """Obtiene un desafio matematico para verificacion humana (GET /captcha)."""
         url = f"{self.base_url}/captcha"
         return http_client.request("GET", url)
 
@@ -40,7 +40,7 @@ class AuthService:
 
     def login(self, email, password):
         """
-        Inicia sesión y obtiene la cookie de Flask + JWT (POST /login).
+        Inicia sesion y obtiene la cookie de Flask + JWT (POST /login).
         Extrae y almacena el token JWT del response para uso en operaciones protegidas.
         """
         url = f"{self.base_url}/login"
@@ -55,30 +55,30 @@ class AuthService:
             token = res["data"].get("token")
             if token:
                 http_client.set_jwt(token)
-                print(f"[AUTH-SERVICE] ✅ JWT recibido y almacenado tras login exitoso")
-                print(f"[AUTH-SERVICE]    token_type: {res['data'].get('token_type', 'Bearer')}")
-                print(f"[AUTH-SERVICE]    expires_in: {res['data'].get('expires_in', '?')} segundos")
+                print("[AUTH-SERVICE] [OK] JWT recibido y almacenado tras login exitoso")
+                print(f"[AUTH-SERVICE]      token_type: {res['data'].get('token_type', 'Bearer')}")
+                print(f"[AUTH-SERVICE]      expires_in: {res['data'].get('expires_in', '?')} segundos")
             else:
-                print(f"[AUTH-SERVICE] ⚠️ Login exitoso pero no se recibió token JWT")
+                print("[AUTH-SERVICE] [WARN] Login exitoso pero no se recibio token JWT")
 
         return res
 
     def logout(self):
-        """Cierra la sesión del usuario y limpia el JWT (POST /logout)."""
+        """Cierra la sesion del usuario y limpia el JWT (POST /logout)."""
         url = f"{self.base_url}/logout"
         res = http_client.request("POST", url)
         http_client.clear_cookies()
         http_client.clear_jwt()
-        print(f"[AUTH-SERVICE] 🚪 Sesión cerrada y JWT limpiado")
+        print("[AUTH-SERVICE] [LOGOUT] Sesion cerrada y JWT limpiado")
         return res
 
     def get_session(self):
-        """Consulta si la sesión actual sigue vigente (GET /session)."""
+        """Consulta si la sesion actual sigue vigente (GET /session)."""
         url = f"{self.base_url}/session"
         return http_client.request("GET", url)
 
     def extend_session(self):
-        """Extiende la sesión activa reseteando el temporizador (POST /session/extend)."""
+        """Extiende la sesion activa reseteando el temporizador (POST /session/extend)."""
         url = f"{self.base_url}/session/extend"
         return http_client.request("POST", url)
 
@@ -111,7 +111,7 @@ class AuthService:
             new_token = res["data"].get("token")
             if new_token:
                 http_client.set_jwt(new_token)
-                print(f"[AUTH-SERVICE] 🔄 Token JWT renovado exitosamente")
+                print("[AUTH-SERVICE] [RENEW] Token JWT renovado exitosamente")
         return res
 
 

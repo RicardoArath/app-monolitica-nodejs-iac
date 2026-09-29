@@ -99,8 +99,8 @@ if __name__ == '__main__':
     print(f"\n{'='*60}")
     print(f"  Auth microservice escuchando en http://0.0.0.0:{PORT}")
     print(f"  Swagger UI disponible en http://localhost:{PORT}/docs")
-    print(f"  🔐 JWT habilitado: HS256 | Expiración: {JWT_EXPIRY_MINUTES} min")
-    print(f"  Endpoints JWT: POST /token/verify, POST /token/refresh")
+    print(f"  [JWT] Habilitado: HS256 | Expiracion: {JWT_EXPIRY_MINUTES} min")
+    print(f"  [JWT] Endpoints: POST /token/verify, POST /token/refresh")
     print(f"{'='*60}\n")
     app.run(host='0.0.0.0', port=PORT, debug=True)
 

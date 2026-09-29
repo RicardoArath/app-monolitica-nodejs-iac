@@ -1,7 +1,7 @@
 """
 network/api_client.py
 Cliente HTTP centralizado utilizando requests.Session.
-Maneja cookies de sesión de Flask, tokens JWT, serialización JSON,
+Maneja cookies de sesion de Flask, tokens JWT, serializacion JSON,
 timeouts de seguridad y captura controlada de errores para tolerancia a fallos.
 """
 import requests
@@ -14,10 +14,10 @@ class ApiClient:
         self.session = requests.Session()
         # Timeout robusto para conexiones remotas a GCP: 10s connect, 30s read
         self.timeout = (10.0, 30.0)
-        # Token JWT (se establece al iniciar sesión)
+        # Token JWT (se establece al iniciar sesion)
         self._jwt_token = None
 
-        # Política de reintento automático ante caídas transitorias de conexión
+        # Politica de reintento automatico ante caidas transitorias de conexion
         retries = Retry(
             total=2,
             backoff_factor=0.3,
@@ -38,18 +38,18 @@ class ApiClient:
         """Almacena el token JWT recibido del servicio de login."""
         self._jwt_token = token
         if token:
-            print(f"[JWT-CLIENT] 🔑 Token JWT almacenado: {token[:50]}...")
+            print(f"[JWT-CLIENT] [TOKEN] Token JWT almacenado: {token[:50]}...")
         else:
-            print(f"[JWT-CLIENT] 🔑 Token JWT eliminado")
+            print("[JWT-CLIENT] [TOKEN] Token JWT eliminado")
 
     def clear_jwt(self):
         """Elimina el token JWT almacenado."""
         self._jwt_token = None
-        print(f"[JWT-CLIENT] 🔑 Token JWT limpiado")
+        print("[JWT-CLIENT] [TOKEN] Token JWT limpiado")
 
     # --- Cookies ---
     def get_cookies_dict(self):
-        """Retorna las cookies actuales de la sesión en forma de diccionario."""
+        """Retorna las cookies actuales de la sesion en forma de diccionario."""
         return requests.utils.dict_from_cookiejar(self.session.cookies)
 
     def set_cookies_dict(self, cookies_dict):
@@ -58,14 +58,14 @@ class ApiClient:
             self.session.cookies.update(requests.utils.cookiejar_from_dict(cookies_dict))
 
     def clear_cookies(self):
-        """Limpia las cookies de la sesión."""
+        """Limpia las cookies de la sesion."""
         self.session.cookies.clear()
 
     def request(self, method, url, params=None, json_data=None, timeout=None):
         """
-        Ejecuta una petición HTTP con tolerancia total a fallos.
-        Inyecta automáticamente el header Authorization: Bearer <token> si hay JWT.
-        Garantiza que la aplicación nunca lance una excepción no capturada ni se cierre.
+        Ejecuta una peticion HTTP con tolerancia total a fallos.
+        Inyecta automaticamente el header Authorization: Bearer <token> si hay JWT.
+        Garantiza que la aplicacion nunca lance una excepcion no capturada ni se cierre.
         """
         params = params or {}
         # Asegurar formato JSON en los microservicios
@@ -78,9 +78,9 @@ class ApiClient:
         headers = {}
         if self._jwt_token:
             headers['Authorization'] = f'Bearer {self._jwt_token}'
-            print(f"[JWT-CLIENT] 📤 {method.upper()} {url} — Enviando JWT en header Authorization")
+            print(f"[JWT-CLIENT] [SEND] {method.upper()} {url} -- Enviando JWT en header Authorization")
         else:
-            print(f"[JWT-CLIENT] 📤 {method.upper()} {url} — Sin token JWT")
+            print(f"[JWT-CLIENT] [SEND] {method.upper()} {url} -- Sin token JWT")
 
         try:
             resp = self.session.request(
@@ -98,9 +98,9 @@ class ApiClient:
 
             # Log de respuesta JWT
             if resp.status_code == 401:
-                print(f"[JWT-CLIENT] ❌ {method.upper()} {url} — 401 Unauthorized (token inválido o expirado)")
+                print(f"[JWT-CLIENT] [401] {method.upper()} {url} -- 401 Unauthorized (token invalido o expirado)")
             elif 200 <= resp.status_code < 300:
-                print(f"[JWT-CLIENT] ✅ {method.upper()} {url} — {resp.status_code} OK")
+                print(f"[JWT-CLIENT] [OK]  {method.upper()} {url} -- {resp.status_code} OK")
 
             return {
                 "success": 200 <= resp.status_code < 300,
@@ -114,21 +114,21 @@ class ApiClient:
                 "success": False,
                 "status_code": 0,
                 "data": None,
-                "error": "Error de conexión: No se pudo contactar al microservicio (servicio inaccesible o apagado)."
+                "error": "Error de conexion: No se pudo contactar al microservicio (servicio inaccesible o apagado)."
             }
         except requests.exceptions.Timeout:
             return {
                 "success": False,
                 "status_code": 408,
                 "data": None,
-                "error": "Tiempo de espera agotado: El microservicio tardó demasiado en responder."
+                "error": "Tiempo de espera agotado: El microservicio tardo demasiado en responder."
             }
         except Exception as e:
             return {
                 "success": False,
                 "status_code": -1,
                 "data": None,
-                "error": f"Error inesperado de comunicación HTTP: {str(e)}"
+                "error": f"Error inesperado de comunicacion HTTP: {str(e)}"
             }
 
 
