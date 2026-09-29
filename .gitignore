@@ -27,3 +27,9 @@ __pycache__/
 # Archives
 *.tar.gz
 *.zip
+
+# Runtime cache / sessions
+**/session.json
+**/config.json
+apps/Python_app/session/session.json
+apps/Python_app/config/config.json

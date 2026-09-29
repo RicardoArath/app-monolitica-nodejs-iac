@@ -1,0 +1,5 @@
+AUTH_BASE_URL = "http://35.193.230.144:5000"
+API_BASE_URL = "http://35.193.230.144:5001"
+SESSION_FILE = "session.json"  # in app directory
+HEALTH_POLL_INTERVAL = 30000  # ms
+PAGE_SIZE = 12
