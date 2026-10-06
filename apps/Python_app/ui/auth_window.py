@@ -31,6 +31,10 @@ class AuthWindow(tk.Toplevel):
 
         self._build_ui()
 
+        # Forzar visibilidad al frente sobre otras aplicaciones
+        self.lift()
+        self.focus_force()
+
     def _build_ui(self):
         # Cabecera
         header = tk.Frame(self, bg="#1e293b", height=70)
