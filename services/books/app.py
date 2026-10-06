@@ -4,8 +4,24 @@ Punto de entrada del microservicio de gestión de libros (services/books).
 Despliega Flask en el puerto 5001.
 """
 import atexit
+import os
+import sys
+import time
+
+# Asegurar que apps/services esté en sys.path desde cualquier ubicación
+_curr = os.path.abspath(__file__)
+for _ in range(4):
+    _curr = os.path.dirname(_curr)
+    _cand = os.path.join(_curr, 'apps', 'services')
+    if os.path.isdir(_cand) and _cand not in sys.path:
+        sys.path.insert(0, _cand)
+    if os.path.isdir(os.path.join(_curr, 'common')) and _curr not in sys.path:
+        sys.path.insert(0, _curr)
+
 from flask import Flask, request
 from flask_cors import CORS
+
+from common import metrics
 
 from config import PORT
 from db import open_pool, close_pool
@@ -18,8 +34,22 @@ def create_app():
     """Crea y configura la aplicación Flask para el microservicio de libros."""
     app = Flask(__name__)
 
+    # --- Métricas HTTP ---
+    @app.before_request
+    def before_req():
+        request._start_time = time.time()
+
+    @app.after_request
+    def after_req(response):
+        dur = time.time() - getattr(request, '_start_time', time.time())
+        ep = request.endpoint or 'unknown'
+        metrics.observe('http_request_duration_seconds', dur, endpoint=ep)
+        metrics.inc('http_requests_total', method=request.method, endpoint=ep, status=response.status_code)
+        return response
+
     # --- CORS ---
     CORS(app, supports_credentials=True)
+
 
     # --- Pool de conexiones PostgreSQL ---
     open_pool()

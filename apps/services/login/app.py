@@ -16,11 +16,34 @@ from routes.health import health_bp
 from routes.token import token_bp
 
 import atexit
+import os
+import sys
+import time
+
+SERVICES_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if SERVICES_DIR not in sys.path:
+    sys.path.insert(0, SERVICES_DIR)
+
+from common import metrics
+from flask import request
 
 
 def create_app():
     """Crea y configura la aplicación Flask."""
     app = Flask(__name__)
+
+    # --- Métricas HTTP ---
+    @app.before_request
+    def before_req():
+        request._start_time = time.time()
+
+    @app.after_request
+    def after_req(response):
+        dur = time.time() - getattr(request, '_start_time', time.time())
+        ep = request.endpoint or 'unknown'
+        metrics.observe('http_request_duration_seconds', dur, endpoint=ep)
+        metrics.inc('http_requests_total', method=request.method, endpoint=ep, status=response.status_code)
+        return response
 
     # --- Configuración de Flask ---
     app.secret_key = SESSION_SECRET
@@ -43,6 +66,7 @@ def create_app():
     app.register_blueprint(session_bp)
     app.register_blueprint(health_bp)
     app.register_blueprint(token_bp)
+
 
     # --- Swagger UI ---
     swagger_ui_bp = get_swaggerui_blueprint(
