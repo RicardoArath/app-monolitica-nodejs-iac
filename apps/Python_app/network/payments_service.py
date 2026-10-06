@@ -15,6 +15,8 @@ class PaymentsService:
         """GET /health"""
         return http_client.request("GET", f"{self.base_url}/health", timeout=(3.0, 5.0))
 
+    check_health = health
+
     def process_payment(self, order_id, amount=None, method="tarjeta_simulada"):
         """POST /payments"""
         payload = {"order_id": order_id, "method": method}

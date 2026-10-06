@@ -17,6 +17,8 @@ class BooksService:
         url = f"{self.base_url}/health"
         return http_client.request("GET", url, timeout=(5.0, 10.0))
 
+    check_health = health
+
     def get_books(self, isbn=None, title=None, year=None, min_price=None, max_price=None, page=1):
         """
         Consulta el catálogo de libros con filtros opcionales (GET /books).

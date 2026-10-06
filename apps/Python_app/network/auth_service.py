@@ -17,6 +17,8 @@ class AuthService:
         url = f"{self.base_url}/health"
         return http_client.request("GET", url, timeout=(5.0, 10.0))
 
+    check_health = health
+
     def get_captcha(self):
         """Obtiene un desafio matematico para verificacion humana (GET /captcha)."""
         url = f"{self.base_url}/captcha"

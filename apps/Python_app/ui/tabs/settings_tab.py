@@ -1,12 +1,11 @@
 """
 ui/tabs/settings_tab.py
-Pestaña de Configuración del Servidor y Entornos (Requisitos 13 y 14 de la Rúbrica).
+Pestaña de Configuración del Servidor y Entornos.
 Permite:
-- Alternar entre Entorno Local (localhost) y Entorno Remoto (GCP) sin tocar código fuente
-- Modificar manualmente las URLs de los microservicios
+- Alternar entre Entorno Local (localhost) y Entorno Remoto (GCP)
+- Modificar manualmente las URLs de los 6 microservicios y host/puerto de Redis
 - Probar la conectividad de los endpoints antes de guardar
 - Guardar la configuración en config.json para que persista entre reinicios
-- Restaurar valores predeterminados
 """
 import threading
 import tkinter as tk
@@ -16,8 +15,13 @@ from config.settings import (
     settings,
     DEFAULT_LOCAL_AUTH,
     DEFAULT_LOCAL_BOOKS,
-    DEFAULT_REMOTE_AUTH,
-    DEFAULT_REMOTE_BOOKS
+    DEFAULT_LOCAL_USERS,
+    DEFAULT_LOCAL_AUTHORS,
+    DEFAULT_LOCAL_ORDERS,
+    DEFAULT_LOCAL_PAYMENTS,
+    DEFAULT_LOCAL_REDIS_HOST,
+    DEFAULT_LOCAL_REDIS_PORT,
+    DEFAULT_REMOTE_HOST
 )
 from network.api_client import http_client
 
@@ -33,138 +37,153 @@ class SettingsTab(ttk.Frame):
         # ---------------------------------------------------------
         # Selector Rápido de Entornos (Presets)
         # ---------------------------------------------------------
-        preset_box = ttk.LabelFrame(self, text="⚡ Selección Rápida de Entorno (Requisito 14)", padding=12)
-        preset_box.pack(fill=tk.X, pady=(0, 15))
+        preset_box = ttk.LabelFrame(self, text="⚡ Selección Rápida de Entorno", padding=12)
+        preset_box.pack(fill=tk.X, pady=(0, 12))
 
         btn_row = ttk.Frame(preset_box)
         btn_row.pack(fill=tk.X)
 
-        self.btn_preset_remote = ttk.Button(btn_row, text="☁️ Modo Remoto (Nube GCP 35.193.230.144)", command=self._apply_remote_preset)
-        self.btn_preset_remote.pack(side=tk.LEFT, padx=(0, 10), fill=tk.X, expand=True)
+        self.btn_preset_local = ttk.Button(
+            btn_row, text="🏠 Modo Local (localhost:5000 - 5005 + Redis:6379)", command=self._apply_local_preset
+        )
+        self.btn_preset_local.pack(side=tk.LEFT, padx=(0, 10), fill=tk.X, expand=True)
 
-        self.btn_preset_local = ttk.Button(btn_row, text="🏠 Modo Local (localhost:5000 / 5001)", command=self._apply_local_preset)
-        self.btn_preset_local.pack(side=tk.LEFT, fill=tk.X, expand=True)
-
-        # ---------------------------------------------------------
-        # Entradas de URLs Personalizadas
-        # ---------------------------------------------------------
-        url_box = ttk.LabelFrame(self, text="🌐 Direcciones de los Microservicios (Requisito 13)", padding=15)
-        url_box.pack(fill=tk.X, pady=(0, 15))
-
-        # Auth URL
-        ttk.Label(url_box, text="URL Microservicio de Autenticación (Login, Sesiones, Registro):", font=("Segoe UI", 9, "bold")).pack(anchor=tk.W)
-        self.txt_auth_url = ttk.Entry(url_box, font=("Segoe UI", 10))
-        self.txt_auth_url.pack(fill=tk.X, pady=(2, 10))
-        self.txt_auth_url.insert(0, settings.auth_url)
-
-        # Books URL
-        ttk.Label(url_box, text="URL Microservicio de Libros (Catálogo, CRUD, Búsquedas):", font=("Segoe UI", 9, "bold")).pack(anchor=tk.W)
-        self.txt_books_url = ttk.Entry(url_box, font=("Segoe UI", 10))
-        self.txt_books_url.pack(fill=tk.X, pady=(2, 12))
-        self.txt_books_url.insert(0, settings.books_url)
+        self.btn_preset_remote = ttk.Button(
+            btn_row, text="☁️ Modo Remoto (Nube GCP 34.171.172.238)", command=self._apply_remote_preset
+        )
+        self.btn_preset_remote.pack(side=tk.LEFT, fill=tk.X, expand=True)
 
         # ---------------------------------------------------------
-        # Panel de Pruebas de Conectividad
+        # Entradas de URLs de los 6 Microservicios
         # ---------------------------------------------------------
-        test_box = ttk.LabelFrame(self, text="🔍 Diagnóstico de Conexión en Vivo", padding=12)
-        test_box.pack(fill=tk.X, pady=(0, 15))
+        canvas_container = ttk.LabelFrame(self, text="🌐 Direcciones de los 6 Microservicios y Redis", padding=12)
+        canvas_container.pack(fill=tk.BOTH, expand=True, pady=(0, 12))
 
-        self.lbl_auth_test = ttk.Label(test_box, text="• Autenticación (:5000): Pendiente de prueba", font=("Segoe UI", 9))
-        self.lbl_auth_test.pack(anchor=tk.W, pady=2)
+        grid = ttk.Frame(canvas_container)
+        grid.pack(fill=tk.BOTH, expand=True)
+        grid.columnconfigure(1, weight=1)
 
-        self.lbl_books_test = ttk.Label(test_box, text="• Libros (:5001): Pendiente de prueba", font=("Segoe UI", 9))
-        self.lbl_books_test.pack(anchor=tk.W, pady=2)
+        # 1. Login
+        ttk.Label(grid, text="1. Login / Auth (:5000):", font=("Segoe UI", 9, "bold")).grid(row=0, column=0, sticky="w", pady=4, padx=5)
+        self.txt_auth = ttk.Entry(grid, font=("Consolas", 9))
+        self.txt_auth.grid(row=0, column=1, sticky="ew", pady=4, padx=5)
+        self.txt_auth.insert(0, settings.auth_url)
 
-        self.btn_test_conn = ttk.Button(test_box, text="🧪 Probar Conexión con Estas URLs", command=self._test_connection)
-        self.btn_test_conn.pack(anchor=tk.W, pady=(8, 0))
+        # 2. Books
+        ttk.Label(grid, text="2. Books / Catálogo (:5001):", font=("Segoe UI", 9, "bold")).grid(row=1, column=0, sticky="w", pady=4, padx=5)
+        self.txt_books = ttk.Entry(grid, font=("Consolas", 9))
+        self.txt_books.grid(row=1, column=1, sticky="ew", pady=4, padx=5)
+        self.txt_books.insert(0, settings.books_url)
+
+        # 3. Users
+        ttk.Label(grid, text="3. Users / Perfiles (:5002):", font=("Segoe UI", 9, "bold")).grid(row=2, column=0, sticky="w", pady=4, padx=5)
+        self.txt_users = ttk.Entry(grid, font=("Consolas", 9))
+        self.txt_users.grid(row=2, column=1, sticky="ew", pady=4, padx=5)
+        self.txt_users.insert(0, settings.users_url)
+
+        # 4. Authors
+        ttk.Label(grid, text="4. Authors (:5003):", font=("Segoe UI", 9, "bold")).grid(row=3, column=0, sticky="w", pady=4, padx=5)
+        self.txt_authors = ttk.Entry(grid, font=("Consolas", 9))
+        self.txt_authors.grid(row=3, column=1, sticky="ew", pady=4, padx=5)
+        self.txt_authors.insert(0, settings.authors_url)
+
+        # 5. Orders
+        ttk.Label(grid, text="5. Pedidos / Stock (:5004):", font=("Segoe UI", 9, "bold")).grid(row=4, column=0, sticky="w", pady=4, padx=5)
+        self.txt_orders = ttk.Entry(grid, font=("Consolas", 9))
+        self.txt_orders.grid(row=4, column=1, sticky="ew", pady=4, padx=5)
+        self.txt_orders.insert(0, settings.orders_url)
+
+        # 6. Payments
+        ttk.Label(grid, text="6. Pagos (:5005):", font=("Segoe UI", 9, "bold")).grid(row=5, column=0, sticky="w", pady=4, padx=5)
+        self.txt_payments = ttk.Entry(grid, font=("Consolas", 9))
+        self.txt_payments.grid(row=5, column=1, sticky="ew", pady=4, padx=5)
+        self.txt_payments.insert(0, settings.payments_url)
+
+        # 7. Redis
+        ttk.Label(grid, text="7. Redis Host & Puerto (:6379):", font=("Segoe UI", 9, "bold")).grid(row=6, column=0, sticky="w", pady=4, padx=5)
+        redis_row = ttk.Frame(grid)
+        redis_row.grid(row=6, column=1, sticky="ew", pady=4, padx=5)
+        redis_row.columnconfigure(0, weight=3)
+        redis_row.columnconfigure(1, weight=1)
+
+        self.txt_redis_host = ttk.Entry(redis_row, font=("Consolas", 9))
+        self.txt_redis_host.grid(row=0, column=0, sticky="ew", padx=(0, 5))
+        self.txt_redis_host.insert(0, settings.redis_host)
+
+        self.txt_redis_port = ttk.Entry(redis_row, font=("Consolas", 9), width=8)
+        self.txt_redis_port.grid(row=0, column=1, sticky="ew")
+        self.txt_redis_port.insert(0, str(settings.redis_port))
 
         # ---------------------------------------------------------
-        # Botones de Acción (Guardar y Restaurar)
+        # Botones de Acción
         # ---------------------------------------------------------
-        actions_row = ttk.Frame(self)
-        actions_row.pack(fill=tk.X)
+        actions = ttk.Frame(self)
+        actions.pack(fill=tk.X, pady=(0, 5))
 
-        self.btn_save = ttk.Button(actions_row, text="💾 Guardar y Aplicar Configuración", command=self._save_settings)
-        self.btn_save.pack(side=tk.LEFT, padx=(0, 10), ipady=3)
+        self.btn_save = ttk.Button(actions, text="💾 Guardar Cambios y Reconectar", command=self._save_settings)
+        self.btn_save.pack(side=tk.LEFT, padx=(0, 10))
 
-        self.btn_reset = ttk.Button(actions_row, text="↺ Restaurar Valores Predeterminados", command=self._reset_defaults)
-        self.btn_reset.pack(side=tk.LEFT)
-
-    def _apply_remote_preset(self):
-        """Aplica el preset de la nube GCP."""
-        self.txt_auth_url.delete(0, tk.END)
-        self.txt_auth_url.insert(0, DEFAULT_REMOTE_AUTH)
-        self.txt_books_url.delete(0, tk.END)
-        self.txt_books_url.insert(0, DEFAULT_REMOTE_BOOKS)
-        self._test_connection()
+        self.lbl_status = ttk.Label(actions, text="", font=("Segoe UI", 9))
+        self.lbl_status.pack(side=tk.LEFT)
 
     def _apply_local_preset(self):
-        """Aplica el preset local."""
-        self.txt_auth_url.delete(0, tk.END)
-        self.txt_auth_url.insert(0, DEFAULT_LOCAL_AUTH)
-        self.txt_books_url.delete(0, tk.END)
-        self.txt_books_url.insert(0, DEFAULT_LOCAL_BOOKS)
-        self._test_connection()
+        settings.set_local()
+        self._refresh_fields_from_settings()
+        self.lbl_status.config(text="Valores locales aplicados (pendientes de guardar).", foreground="#0284c7")
 
-    def _test_connection(self):
-        """Prueba ambos endpoints en segundo plano."""
-        auth_url = self.txt_auth_url.get().strip().rstrip("/")
-        books_url = self.txt_books_url.get().strip().rstrip("/")
+    def _apply_remote_preset(self):
+        settings.set_remote(DEFAULT_REMOTE_HOST)
+        self._refresh_fields_from_settings()
+        self.lbl_status.config(text="Valores remotos de GCP aplicados (pendientes de guardar).", foreground="#0284c7")
 
-        self.btn_test_conn.config(state=tk.DISABLED)
-        self.lbl_auth_test.config(text="• Autenticación: Comprobando conexión...", foreground="#0284c7")
-        self.lbl_books_test.config(text="• Libros: Comprobando conexión...", foreground="#0284c7")
+    def _refresh_fields_from_settings(self):
+        self.txt_auth.delete(0, tk.END)
+        self.txt_auth.insert(0, settings.auth_url)
 
-        def thread_task():
-            res_auth = http_client.request("GET", f"{auth_url}/health", timeout=(2.0, 3.0))
-            res_books = http_client.request("GET", f"{books_url}/health", timeout=(2.0, 3.0))
+        self.txt_books.delete(0, tk.END)
+        self.txt_books.insert(0, settings.books_url)
 
-            self.after(0, lambda: self._on_test_done(res_auth, res_books))
+        self.txt_users.delete(0, tk.END)
+        self.txt_users.insert(0, settings.users_url)
 
-        threading.Thread(target=thread_task, daemon=True).start()
+        self.txt_authors.delete(0, tk.END)
+        self.txt_authors.insert(0, settings.authors_url)
 
-    def _on_test_done(self, res_auth, res_books):
-        self.btn_test_conn.config(state=tk.NORMAL)
+        self.txt_orders.delete(0, tk.END)
+        self.txt_orders.insert(0, settings.orders_url)
 
-        if res_auth["success"]:
-            db = res_auth["data"].get("database", "ok") if res_auth["data"] else "ok"
-            self.lbl_auth_test.config(text=f"• Autenticación (5000): 🟢 Conexión Exitosa (DB: {db})", foreground="#16a34a")
-        else:
-            self.lbl_auth_test.config(text=f"• Autenticación (5000): 🔴 Falló conexión ({res_auth['error']})", foreground="#dc2626")
+        self.txt_payments.delete(0, tk.END)
+        self.txt_payments.insert(0, settings.payments_url)
 
-        if res_books["success"]:
-            db = res_books["data"].get("database", "ok") if res_books["data"] else "ok"
-            self.lbl_books_test.config(text=f"• Libros (5001): 🟢 Conexión Exitosa (DB: {db})", foreground="#16a34a")
-        else:
-            self.lbl_books_test.config(text=f"• Libros (5001): 🔴 Falló conexión ({res_books['error']})", foreground="#dc2626")
+        self.txt_redis_host.delete(0, tk.END)
+        self.txt_redis_host.insert(0, settings.redis_host)
+
+        self.txt_redis_port.delete(0, tk.END)
+        self.txt_redis_port.insert(0, str(settings.redis_port))
 
     def _save_settings(self):
-        """Guarda y hace persistente la configuración en config.json."""
-        auth_url = self.txt_auth_url.get().strip().rstrip("/")
-        books_url = self.txt_books_url.get().strip().rstrip("/")
+        settings.auth_url = self.txt_auth.get().strip().rstrip("/")
+        settings.books_url = self.txt_books.get().strip().rstrip("/")
+        settings.users_url = self.txt_users.get().strip().rstrip("/")
+        settings.authors_url = self.txt_authors.get().strip().rstrip("/")
+        settings.orders_url = self.txt_orders.get().strip().rstrip("/")
+        settings.payments_url = self.txt_payments.get().strip().rstrip("/")
+        settings.redis_host = self.txt_redis_host.get().strip()
+        try:
+            settings.redis_port = int(self.txt_redis_port.get().strip())
+        except ValueError:
+            settings.redis_port = 6379
 
-        if not auth_url or not books_url:
-            messagebox.showerror("Error", "Ambas URLs son obligatorias.")
-            return
+        if "localhost" in settings.auth_url or "127.0.0.1" in settings.auth_url:
+            settings.active_env = "local"
+        else:
+            settings.active_env = "remote"
 
-        settings.auth_url = auth_url
-        settings.books_url = books_url
         ok = settings.save()
-
         if ok:
-            messagebox.showinfo("Configuración Guardada", "Las direcciones de los microservicios han sido guardadas exitosamente y persistirán al reiniciar la aplicación.")
+            messagebox.showinfo("Configuración Guardada", "Las direcciones de los 6 microservicios y Redis han sido actualizadas exitosamente.")
+            self.lbl_status.config(text="Configuración guardada correctamente.", foreground="#16a34a")
             if self.on_settings_saved:
                 self.on_settings_saved()
         else:
-            messagebox.showerror("Error", "No se pudo escribir en el archivo config.json.")
-
-    def _reset_defaults(self):
-        """Restaura los valores por defecto (Remoto GCP)."""
-        settings.reset_defaults()
-        self.txt_auth_url.delete(0, tk.END)
-        self.txt_auth_url.insert(0, settings.auth_url)
-        self.txt_books_url.delete(0, tk.END)
-        self.txt_books_url.insert(0, settings.books_url)
-        messagebox.showinfo("Restaurado", "Se han restaurado los valores predeterminados (Nube GCP).")
-        if self.on_settings_saved:
-            self.on_settings_saved()
+            messagebox.showerror("Error", "No se pudo guardar la configuración en config.json.")

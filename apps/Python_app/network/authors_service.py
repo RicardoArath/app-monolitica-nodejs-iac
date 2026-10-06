@@ -15,6 +15,8 @@ class AuthorsService:
         """GET /health"""
         return http_client.request("GET", f"{self.base_url}/health", timeout=(3.0, 5.0))
 
+    check_health = health
+
     def list_authors(self):
         """GET /authors"""
         return http_client.request("GET", f"{self.base_url}/authors")
