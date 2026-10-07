@@ -27,9 +27,10 @@ El presente proyecto tuvo como propósito evolucionar la plataforma de **Librer�
 4. **Patrón Cache-Aside e Invalidación Proactiva de Catálogo:**
    - En el microservicio de **Books (:5001)**, almacenamiento en caché de listados paginados y filtrados (`books:list:<filtros>`) y detalle por ISBN (`books:<isbn>`) con TTL corto.
    - Invalidación proactiva y atómica de todas las claves de catálogo ante cualquier operación de mutación (`POST`, `PUT`, `PATCH`, `DELETE`) y ante cambios de stock derivados de compras o cancelaciones.
+   - Flag `<from_cache>true</from_cache>` expuesto en respuestas XML y JSON para auditoría de Cache-Hits.
 5. **Construcción de los 4 Nuevos Microservicios:**
    - **Users Microservice (:5002):** Administración de identidades, roles (Admin/User), correos y contraseñas cifradas con bcrypt.
-   - **Authors Microservice (:5003):** CRUD de autores y administración de la relación muchos a muchos con libros (`book_authors`).
+   - **Authors Microservice (:5003):** CRUD de autores y administración de la relación muchos a muchos con libros (`book_authors`). Formato dual XML/JSON nativo.
    - **Pedidos Microservice (:5004):** Creación y gestión de órdenes de compra, líneas de pedido, reserva atómica transaccional de stock e invalidación de caché.
    - **Pagos Microservice (:5005):** Registro y confirmación de pagos simulados, actualización de estados de pedidos e idempotencia.
 6. **Evolución del Cliente de Escritorio (Python Tkinter):**
@@ -46,7 +47,7 @@ El presente proyecto tuvo como propósito evolucionar la plataforma de **Librer�
                               │           CLIENTE PYTHON TKINTER (Escritorio)           │
                               │  - 7 Semáforos de Salud (6 Servicios + Redis)           │
                               │  - Inyección Automática de JWT Bearer                   │
-                              │  - Módulos CRUD: Libros, Autores, Pedidos, Usuarios     │
+                              │  - Módulos CRUD: Libros, Autores, Pedidos, Pagos        │
                               └────────────────────────────┬────────────────────────────┘
                                                            │ HTTP / REST (JSON & XML)
                                                            ▼
@@ -76,7 +77,9 @@ El presente proyecto tuvo como propósito evolucionar la plataforma de **Librer�
 ## 3. Decisiones de Diseño y Patrones Clave
 
 ### A. Patrón Cache-Aside e Invalidación Consistente
-Para proteger a PostgreSQL de sobrecargas por consultas repetitivas de solo lectura, el microservicio de **Books** consulta primero la clave `books:list:<query_hash>` o `books:<isbn>` en Redis. Si ocurre un *Cache Hit*, la respuesta se retorna en sub-milisegundos. Si ocurre un *Cache Miss*, los datos se leen de PostgreSQL y se escriben en Redis con un TTL de 120 segundos.
+Para proteger a PostgreSQL de sobrecargas por consultas repetitivas de solo lectura, el microservicio de **Books** consulta primero la clave `books:list:<query_hash>` o `books:<isbn>` en Redis.
+- **Cache Hit:** Si existe en Redis, la respuesta se retorna en sub-milisegundos, incluyendo el atributo `<from_cache>true</from_cache>`.
+- **Cache Miss:** Si no existe, se lee de PostgreSQL, se serializa y se persiste en Redis con un TTL de 120 segundos.
 
 Ante cualquier mutación (creación o edición de libros, o creación/cancelación de pedidos que modifiquen el stock disponible de un libro), el sistema ejecuta una invalidación por patrón (`SCAN` + `DELETE` sobre `books:*`), garantizando que los clientes nunca visualicen inventarios o datos desactualizados.
 
@@ -95,8 +98,6 @@ El microservicio de **Pedidos (:5004)** gestiona la creación de órdenes verifi
 
 ## 4. Matriz de Pruebas y Evidencias Fotográficas
 
-A continuación se presenta la matriz de casos de prueba ejecutados y verificados en la aplicación de escritorio y los microservicios:
-
 | ID | Caso de Prueba | Módulo / Servicio | Acción Realizada | Resultado Esperado | Resultado Obtenido | Captura Asociada |
 | :---: | :--- | :--- | :--- | :--- | :--- | :--- |
 | **01** | Semáforo de salud de 7 nodos | Monitoreo (`/health` & Redis) | Consulta en tiempo real de los 6 microservicios y Redis. | Mostrar estado operativo, latencias y conectividad a BD y memoria. | 6 servicios HTTP respondiendo en ~280-330 ms; usuario autenticado como ADMIN. | `01_semaforo_salud_7nodos.png` |
@@ -106,7 +107,10 @@ A continuación se presenta la matriz de casos de prueba ejecutados y verificado
 | **05** | Creación de pedido con reserva atómica | Pedidos (:5004) | Creación del Pedido #31 seleccionando libros del catálogo. | Inserción de orden, reserva de inventario e invalidación de caché en Redis. | Diálogo informativo confirmando Pedido #31 ($1009.00) y purga de caché. | `05_crear_pedido_reserva_stock_cache.png` |
 | **06** | Cancelación de pedido y restitución de stock | Pedidos (:5004) | Selección de orden #27 y clic en "Cancelar Pedido (Restituir Stock)". | Modal de confirmación indicando restauración automática de stock. | Diálogo emergente solicitando confirmación con advertencia de stock e invalidación. | `06_cancelar_pedido_restitucion_stock.png` |
 | **07** | Actualización de estados de órdenes | Pedidos (:5004) | Consulta del historial de pedidos tras mutaciones. | Visualización de pedidos en estados `PENDING`, `CONFIRMED` y `CANCELLED`. | Pedido #31 en estado PENDING y Pedido #27 en estado CANCELLED con líneas de detalle. | `07_pedido_31_pending_y_27_cancelled.png` |
-| **08** | Verificación de confirmación para orden #31 | Pedidos (:5004) | Intento de cancelación del nuevo Pedido #31. | Cuadro de confirmación específico para la orden #31. | Alerta interactiva con detalles de la acción a ejecutar. | `08_cancelar_pedido_31_confirmacion.png` |
+| **08** | Verificación de confirmación orden #31 | Pedidos (:5004) | Intento de cancelación del nuevo Pedido #31. | Cuadro de confirmación específico para la orden #31. | Alerta interactiva con detalles de la acción a ejecutar. | `08_cancelar_pedido_31_confirmacion.png` |
+| **09** | Consulta de pagos por pedido | Pagos (:5005) | Búsqueda de transacciones del Pedido #26 en la app de escritorio. | Consultar tabla `simulated_payments` y verificar estado y método. | Pago #26 ($412.00, `simulated_card`, estado `APPROVED`). | `09_modulo_pagos_consulta_pedido26.png` |
+| **10** | Consumo REST XML del microservicio Authors | Authors (:5003) | Petición `GET /authors` directa vía navegador web en GCP. | Generar respuesta nativa en formato XML (`<response><authors>`). | Estructura XML completa con metadatos y lista de autores (`from_cache: false`). | `10_microservicio_authors_xml.png` |
+| **11** | Demostración de Cache-Hit en Redis | Books (:5001) | Petición `GET /books` directa vía navegador web en GCP. | Recuperar libros desde Redis sin consultar PostgreSQL. | Respuesta XML con flag explícito `<from_cache>true</from_cache>`, certificando Cache-Hit. | `11_microservicio_books_cache_hit_redis_xml.png` |
 
 ---
 
@@ -147,6 +151,19 @@ Flujo completo de compra: creación de orden con reserva atómica de existencias
 
 ![Confirmación de Cancelación Pedido #31](screenshots/08_cancelar_pedido_31_confirmacion.png)
 *Figura 8: Confirmación de reversión de orden #31.*
+
+---
+
+### Evidencias 9, 10 y 11: Microservicio de Pagos, Formato XML y Cache-Hit en Redis
+
+![Consulta de Pagos](screenshots/09_modulo_pagos_consulta_pedido26.png)
+*Figura 9: Módulo de Pagos consultando la transacción #26 asociada al pedido.*
+
+![Microservicio Authors XML](screenshots/10_microservicio_authors_xml.png)
+*Figura 10: Respuesta XML directa de `http://34.45.243.248:5003/authors` demostrando soporte para XML.*
+
+![Cache Hit en Redis XML](screenshots/11_microservicio_books_cache_hit_redis_xml.png)
+*Figura 11: Respuesta XML directa de `http://34.45.243.248:5001/books` con `<from_cache>true</from_cache>`, demostrando recuperación directa desde la caché en memoria de Redis.*
 
 ---
 
