@@ -151,7 +151,30 @@ class HealthTab(ttk.Frame):
         results["payments"] = self._parse_http_health(payments_res, payments_lat)
 
         # 7. Redis (:6379)
-        results["redis"] = self._check_redis_socket(settings.redis_host, settings.redis_port)
+        redis_socket_res = self._check_redis_socket(settings.redis_host, settings.redis_port)
+        if redis_socket_res["state"] == "ok":
+            results["redis"] = redis_socket_res
+        else:
+            # En entornos en la nube (GCP), el puerto 6379 es privado y suele estar protegido del internet público.
+            # Verificamos si los microservicios en la nube tienen conectividad activa a Redis:
+            cloud_connected = []
+            for name, r in [("Auth", auth_res), ("Books", books_res), ("Users", users_res), ("Pedidos", orders_res)]:
+                if r.get("success"):
+                    d = r.get("data") or {}
+                    red_st = d.get("redis")
+                    if isinstance(red_st, dict) and red_st.get("status") == "connected":
+                        cloud_connected.append(name)
+                    elif red_st == "connected":
+                        cloud_connected.append(name)
+
+            if cloud_connected:
+                results["redis"] = {
+                    "state": "ok",
+                    "badge": "En clúster",
+                    "detail": f"Redis en memoria 100% activo en GCP (Verificado por: {', '.join(cloud_connected)})"
+                }
+            else:
+                results["redis"] = redis_socket_res
 
         self.after(0, lambda: self._apply_results_ui(results))
 
