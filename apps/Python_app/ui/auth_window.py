@@ -33,6 +33,8 @@ class AuthWindow(tk.Toplevel):
 
         # Forzar visibilidad al frente sobre otras aplicaciones
         self.lift()
+        self.attributes('-topmost', True)
+        self.after_idle(self.attributes, '-topmost', False)
         self.focus_force()
 
     def _build_ui(self):

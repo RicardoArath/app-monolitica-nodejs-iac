@@ -1,14 +1,35 @@
 """
 routes/books.py
 CRUD de libros para el microservicio de libros (puerto 5001).
-Soporta GET, POST, PUT, PATCH, DELETE basados en ISBN y filtros de búsqueda.
+Integra:
+  - Cache-Aside en Redis con Dual Fail-Safe (FAIL-OPEN para lecturas de catálogo)
+  - Invalidación automática de caché (books:*) tras escrituras
+  - Middleware @jwt_required y RBAC @roles_required('admin') para mutaciones (FAIL-CLOSED)
+  - Respuestas duales JSON/XML
 """
+import sys, os
+_curr = os.path.abspath(__file__)
+for _ in range(4):
+    _curr = os.path.dirname(_curr)
+    _cand = os.path.join(_curr, 'apps', 'services')
+    if os.path.isdir(_cand) and _cand not in sys.path:
+        sys.path.insert(0, _cand)
+    if os.path.isdir(os.path.join(_curr, 'common')) and _curr not in sys.path:
+        sys.path.insert(0, _curr)
+
+
 from flask import Blueprint, request, g
 import psycopg.rows
 
-from db import get_connection
-from helpers.response import make_response_format
-from middleware.jwt_guard import jwt_required
+from common import (
+    get_connection,
+    make_response_format,
+    config as common_config,
+    redis_client,
+    jwt_required,
+    roles_required
+)
+
 
 books_bp = Blueprint('books', __name__)
 
@@ -33,19 +54,15 @@ def _find_book_by_isbn_or_id(cur, identifier):
 
 
 # -----------------------------------------------------------------
-# GET /books (y alias /api/books)
+# GET /books (y alias /api/books) -- CACHE-ASIDE (FAIL-OPEN)
 # -----------------------------------------------------------------
 @books_bp.route('/books', methods=['GET'])
 @books_bp.route('/api/books', methods=['GET'])
 def list_books():
     """
     Listado y búsqueda de libros con filtros:
-    - isbn: coincidencia parcial de ISBN
-    - title o q: búsqueda por título
-    - year: año exacto de publicación
-    - min_price: precio mínimo
-    - max_price: precio máximo
-    - page: número de página (default 1)
+    - Aplica Cache-Aside en Redis (books:list:<filtros>) con TTL de 300 segundos.
+    - Si Redis no está disponible, cae a PostgreSQL sin romper la API (Fail-Open).
     """
     args = request.args
     isbn_term = args.get('isbn', '').strip() or None
@@ -59,8 +76,20 @@ def list_books():
     except (ValueError, TypeError):
         page = 1
 
-    offset = (page - 1) * PAGE_SIZE
+    # Clave de caché única por filtros
+    cache_key = (
+        f"books:list:isbn={isbn_term or ''}:title={title_term or ''}:"
+        f"year={year_term or ''}:min={min_price or ''}:max={max_price or ''}:p={page}"
+    )
 
+    # 1. Intentar HIT en caché (Fail-Open: si falla o no existe, retorna None)
+    cached_data = redis_client.get_cache(cache_key, prefix='books')
+    if cached_data is not None:
+        cached_data['from_cache'] = True
+        return make_response_format(cached_data, 200, request)
+
+    # 2. MISS o Bypass de caché -> Consulta a PostgreSQL
+    offset = (page - 1) * PAGE_SIZE
     where_clauses = []
     params = []
 
@@ -94,12 +123,10 @@ def list_books():
     try:
         with get_connection() as conn:
             with conn.cursor(row_factory=psycopg.rows.dict_row) as cur:
-                # Contar registros
                 cur.execute(f"SELECT COUNT(*) AS total FROM v_catalog {where_sql}", params)
                 total = cur.fetchone()['total']
                 total_pages = max(1, (total + PAGE_SIZE - 1) // PAGE_SIZE)
 
-                # Obtener página
                 query = f"""
                     SELECT id, isbn, title, publication_year, price, stock,
                            format_name, category_name, cover_image,
@@ -112,8 +139,9 @@ def list_books():
                 cur.execute(query, params + [PAGE_SIZE, offset])
                 records = cur.fetchall()
 
-        return make_response_format({
+        response_payload = {
             'status': 'success',
+            'from_cache': False,
             'books': records,
             'meta': {
                 'total': total,
@@ -127,30 +155,45 @@ def list_books():
                     'max_price': max_price
                 }
             }
-        }, 200, request)
+        }
+
+        # 3. Guardar en Redis con TTL de 300s
+        redis_client.set_cache(cache_key, response_payload, ttl=common_config.CACHE_TTL_BOOKS_LIST, prefix='books')
+
+        return make_response_format(response_payload, 200, request)
     except Exception as e:
         return make_response_format({'status': 'error', 'message': str(e)}, 500, request)
 
 
 # -----------------------------------------------------------------
-# GET /books/{isbn} (y alias /api/books/{isbn})
+# GET /books/{isbn} (y alias /api/books/{isbn}) -- CACHE-ASIDE (FAIL-OPEN)
 # -----------------------------------------------------------------
 @books_bp.route('/books/<path:isbn>', methods=['GET'])
 @books_bp.route('/api/books/<path:isbn>', methods=['GET'])
 def get_book_by_isbn(isbn):
     """
-    Obtiene la información detallada de un libro a partir de su ISBN.
-    Incluye autores, géneros, conceptos/definiciones e imágenes.
+    Obtiene la información detallada de un libro a partir de su ISBN o ID.
+    Aplica Cache-Aside en Redis (books:<isbn>) con TTL de 900 segundos.
     """
+    clean_isbn = isbn.strip()
+    cache_key = f"books:{clean_isbn}"
+
+    # 1. Intentar HIT en caché
+    cached_data = redis_client.get_cache(cache_key, prefix='books')
+    if cached_data is not None:
+        cached_data['from_cache'] = True
+        return make_response_format(cached_data, 200, request)
+
+    # 2. MISS -> Consulta a PostgreSQL
     try:
         with get_connection() as conn:
             with conn.cursor(row_factory=psycopg.rows.dict_row) as cur:
-                book = _find_book_by_isbn_or_id(cur, isbn)
+                book = _find_book_by_isbn_or_id(cur, clean_isbn)
 
                 if not book:
                     return make_response_format({
                         'status': 'error',
-                        'message': f'Libro no encontrado para el ISBN o ID: "{isbn}".'
+                        'message': f'Libro no encontrado para el ISBN o ID: "{clean_isbn}".'
                     }, 404, request)
 
                 book_id = book['id']
@@ -190,24 +233,31 @@ def get_book_by_isbn(isbn):
                 )
                 book['images'] = cur.fetchall()
 
-        return make_response_format({
+        response_payload = {
             'status': 'success',
+            'from_cache': False,
             'book': book
-        }, 200, request)
+        }
+
+        # 3. Guardar en Redis con TTL de 900s
+        redis_client.set_cache(cache_key, response_payload, ttl=common_config.CACHE_TTL_BOOK_DETAIL, prefix='books')
+
+        return make_response_format(response_payload, 200, request)
     except Exception as e:
         return make_response_format({'status': 'error', 'message': str(e)}, 500, request)
 
 
 # -----------------------------------------------------------------
-# POST /books (y alias /api/books)
+# POST /books (y alias /api/books) -- INVALIDA CACHÉ
 # -----------------------------------------------------------------
 @books_bp.route('/books', methods=['POST'])
 @books_bp.route('/api/books', methods=['POST'])
-@jwt_required
+@jwt_required()
+@roles_required('admin')
 def create_book():
     """
-    Registra un nuevo libro.
-    Valida campos obligatorios y unicidad de ISBN.
+    Registra un nuevo libro (requiere JWT y rol admin).
+    Invalida todas las claves de catálogo en Redis (books:*).
     """
     data = request.get_json(silent=True) or request.form.to_dict() or {}
 
@@ -234,7 +284,6 @@ def create_book():
     try:
         with get_connection() as conn:
             with conn.cursor() as cur:
-                # Comprobar unicidad de ISBN
                 cur.execute("SELECT id FROM books WHERE isbn = %s", (isbn,))
                 if cur.fetchone():
                     return make_response_format({
@@ -242,7 +291,6 @@ def create_book():
                         'message': f'Ya existe un libro registrado con el ISBN "{isbn}".'
                     }, 409, request)
 
-                # Insertar mediante sp_create_book con type casts explícitos
                 cur.execute(
                     """SELECT sp_create_book(
                         %s::text,
@@ -272,6 +320,9 @@ def create_book():
                 new_id = cur.fetchone()[0]
                 conn.commit()
 
+        # Invalida caché de libros en Redis
+        redis_client.invalidate_pattern('books:*')
+
         return make_response_format({
             'status': 'success',
             'message': 'Libro creado exitosamente.',
@@ -286,16 +337,16 @@ def create_book():
 
 
 # -----------------------------------------------------------------
-# PUT /books/{isbn} (y alias /api/books/{isbn})
-# Actualización COMPLETA
+# PUT /books/{isbn} -- ACTUALIZACIÓN COMPLETA (INVALIDA CACHÉ)
 # -----------------------------------------------------------------
 @books_bp.route('/books/<path:isbn>', methods=['PUT'])
 @books_bp.route('/api/books/<path:isbn>', methods=['PUT'])
-@jwt_required
+@jwt_required()
+@roles_required('admin')
 def update_book_full(isbn):
     """
     Actualización COMPLETA de un libro (PUT).
-    Sobrescribe todos los atributos principales del recurso.
+    Invalida todas las claves de catálogo en Redis (books:*).
     """
     data = request.get_json(silent=True) or request.form.to_dict() or {}
 
@@ -324,7 +375,6 @@ def update_book_full(isbn):
 
                 book_id = existing['id']
 
-                # Actualización completa
                 cur.execute(
                     """UPDATE books
                           SET title = %s, publication_year = %s,
@@ -344,10 +394,12 @@ def update_book_full(isbn):
                     )
                 )
 
-                # Reemplazo de autores y géneros con type casts
                 cur.execute("SELECT sp_set_book_authors(%s, %s::int[])", (book_id, [int(x) for x in author_ids] if author_ids else [1]))
                 cur.execute("SELECT sp_set_book_genres(%s, %s::int[])", (book_id, [int(x) for x in genre_ids] if genre_ids else [1]))
                 conn.commit()
+
+        # Invalida caché de catálogo en Redis
+        redis_client.invalidate_pattern('books:*')
 
         return make_response_format({
             'status': 'success',
@@ -359,16 +411,16 @@ def update_book_full(isbn):
 
 
 # -----------------------------------------------------------------
-# PATCH /books/{isbn} (y alias /api/books/{isbn})
-# Actualización PARCIAL
+# PATCH /books/{isbn} -- ACTUALIZACIÓN PARCIAL (INVALIDA CACHÉ)
 # -----------------------------------------------------------------
 @books_bp.route('/books/<path:isbn>', methods=['PATCH'])
 @books_bp.route('/api/books/<path:isbn>', methods=['PATCH'])
-@jwt_required
+@jwt_required()
+@roles_required('admin')
 def update_book_partial(isbn):
     """
     Actualización PARCIAL de un libro (PATCH).
-    Modifica únicamente los campos enviados en el payload.
+    Invalida todas las claves de catálogo en Redis (books:*).
     """
     data = request.get_json(silent=True) or request.form.to_dict() or {}
 
@@ -389,7 +441,6 @@ def update_book_partial(isbn):
                     }, 404, request)
 
                 book_id = existing['id']
-
                 set_clauses = []
                 params = []
                 updated_fields = []
@@ -446,6 +497,9 @@ def update_book_partial(isbn):
 
                 conn.commit()
 
+        # Invalida caché de catálogo en Redis
+        redis_client.invalidate_pattern('books:*')
+
         return make_response_format({
             'status': 'success',
             'message': f'Libro con ISBN "{isbn}" actualizado parcialmente mediante PATCH.',
@@ -457,14 +511,16 @@ def update_book_partial(isbn):
 
 
 # -----------------------------------------------------------------
-# DELETE /books/{isbn} (y alias /api/books/{isbn})
+# DELETE /books/{isbn} -- ELIMINACIÓN (INVALIDA CACHÉ)
 # -----------------------------------------------------------------
 @books_bp.route('/books/<path:isbn>', methods=['DELETE'])
 @books_bp.route('/api/books/<path:isbn>', methods=['DELETE'])
-@jwt_required
+@jwt_required()
+@roles_required('admin')
 def delete_book(isbn):
     """
-    Elimina un libro por su ISBN.
+    Elimina un libro por su ISBN (requiere JWT y rol admin).
+    Invalida todas las claves de catálogo en Redis (books:*).
     """
     try:
         with get_connection() as conn:
@@ -480,12 +536,14 @@ def delete_book(isbn):
                 cur.execute("SELECT sp_delete_book(%s)", (book_id,))
                 conn.commit()
 
+        # Invalida caché de catálogo en Redis
+        redis_client.invalidate_pattern('books:*')
+
         return make_response_format({
             'status': 'success',
             'message': f'El libro con ISBN "{isbn}" fue eliminado exitosamente.'
         }, 200, request)
     except Exception as e:
-        # Manejo de llave foránea si el libro está en pedidos
         err_msg = str(e)
         if '23503' in err_msg or 'foreign key' in err_msg.lower():
             return make_response_format({

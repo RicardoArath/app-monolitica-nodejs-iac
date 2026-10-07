@@ -6,7 +6,13 @@ import random
 import re
 import secrets
 import unicodedata
+import os
+import sys
 from datetime import datetime, timezone, timedelta
+
+_SERVICES_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _SERVICES_DIR not in sys.path:
+    sys.path.insert(0, _SERVICES_DIR)
 
 import bcrypt
 from flask import Blueprint, request, session
@@ -16,6 +22,13 @@ from db import get_connection
 from helpers.response import make_response_format
 from helpers.mailer import send_verification_email
 from config import JWT_SECRET, JWT_EXPIRY_MINUTES
+from common import (
+    redis_client,
+    RedisSecurityException,
+    issue_access_token,
+    issue_refresh_token,
+    revoke_jwt
+)
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -394,7 +407,7 @@ def login():
             )
         }, 403, request)
 
-    # Crear sesión Flask
+    # Crear sesión Flask para compatibilidad
     session.clear()
     session['user_id'] = user_id
     session['username'] = username
@@ -403,41 +416,64 @@ def login():
     session['nombre'] = nombre
     session['last_activity'] = datetime.now(timezone.utc).isoformat()
 
-    # --- Generar JWT ---
-    jwt_payload = {
-        'sub': str(user_id),
+    # Construir diccionario de usuario para emisión de JWT
+    role_id = 1 if role == 'admin' else 2
+    user_dict = {
+        'id': user_id,
+        'user_id': user_id,
+        'username': username,
+        'email': user_email,
+        'nombre': nombre or '',
+        'apellido_paterno': apellido_paterno or '',
+        'apellido_materno': apellido_materno or '',
+        'role': role,
+        'role_id': role_id
+    }
+
+    # Emitir Access Token (20 min) y Refresh Token (7 días)
+    token, payload = issue_access_token(user_dict)
+    try:
+        refresh_token = issue_refresh_token(user_id)
+    except RedisSecurityException as r_err:
+        return make_response_format({
+            'status': 'error',
+            'message': 'No se pudo generar el refresh token en Redis.'
+        }, 503, request)
+
+    # Guardar sesión en Redis con TTL de 20 minutos (1200 segundos)
+    session_data = {
+        'user_id': user_id,
         'username': username,
         'email': user_email,
         'role': role,
-        'nombre': nombre,
-        'iat': datetime.now(timezone.utc),
-        'exp': datetime.now(timezone.utc) + timedelta(minutes=JWT_EXPIRY_MINUTES)
+        'role_id': role_id,
+        'nombre': nombre or '',
+        'jti': payload['jti'],
+        'login_at': datetime.now(timezone.utc).isoformat()
     }
-    token = jwt.encode(jwt_payload, JWT_SECRET, algorithm='HS256')
+    try:
+        redis_client.save_session(user_id, session_data, ttl_seconds=1200)
+    except RedisSecurityException as r_err:
+        return make_response_format({
+            'status': 'error',
+            'message': 'No se pudo guardar la sesión de usuario en Redis.'
+        }, 503, request)
 
     # --- Log en consola ---
     print(f"\n{'='*60}")
-    print(f"[JWT] [OK] TOKEN EMITIDO para usuario: {username} ({user_email})")
-    print(f"[JWT]    user_id: {user_id} | role: {role}")
-    print(f"[JWT]    expira en: {JWT_EXPIRY_MINUTES} minutos")
-    print(f"[JWT]    token: {token[:50]}...")
+    print(f"[AUTH+REDIS] [OK] Sesión y tokens emitidos para: {username} ({user_email})")
+    print(f"[AUTH+REDIS]      user_id: {user_id} | role: {role} (id={role_id}) | JTI: {payload['jti']}")
+    print(f"[AUTH+REDIS]      Access Token TTL: 20 min | Refresh Token TTL: 7 días")
     print(f"{'='*60}\n")
 
     return make_response_format({
         'status': 'success',
         'message': 'Inicio de sesión exitoso.',
         'token': token,
+        'refresh_token': refresh_token,
         'token_type': 'Bearer',
-        'expires_in': JWT_EXPIRY_MINUTES * 60,
-        'user': {
-            'id': user_id,
-            'username': username,
-            'email': user_email,
-            'nombre': nombre,
-            'apellido_paterno': apellido_paterno,
-            'apellido_materno': apellido_materno,
-            'role': role
-        }
+        'expires_in': 1200,
+        'user': user_dict
     }, 200, request)
 
 
@@ -446,8 +482,40 @@ def login():
 # -----------------------------------------------------------------
 @auth_bp.route('/logout', methods=['POST'])
 def logout():
-    """Cerrar la sesión del usuario."""
-    if 'user_id' not in session:
+    """Cerrar la sesión del usuario, revocar JWT en Redis y limpiar sesión."""
+    auth_header = request.headers.get('Authorization', '').strip()
+    token_to_revoke = None
+    if auth_header.startswith('Bearer '):
+        token_to_revoke = auth_header[7:].strip()
+    elif request.is_json:
+        token_to_revoke = (request.get_json(silent=True) or {}).get('token')
+
+    # Revocar JWT en Redis si existe
+    if token_to_revoke:
+        try:
+            revoke_jwt(token_to_revoke)
+            print(f"[AUTH+REDIS] [LOGOUT] JTI revocado para token: {token_to_revoke[:30]}...")
+        except Exception as e:
+            print(f"[AUTH+REDIS] [LOGOUT] Advertencia al revocar JWT: {e}")
+
+    # Obtener user_id
+    user_id = session.get('user_id')
+    if not user_id and token_to_revoke:
+        try:
+            unverified = jwt.decode(token_to_revoke, options={"verify_signature": False})
+            user_id = unverified.get('user_id') or unverified.get('sub')
+        except Exception:
+            pass
+
+    # Eliminar sesión en Redis
+    if user_id:
+        try:
+            redis_client.delete_session(int(user_id))
+            print(f"[AUTH+REDIS] [LOGOUT] Sesión en Redis eliminada para user_id {user_id}")
+        except Exception as e:
+            print(f"[AUTH+REDIS] [LOGOUT] Advertencia al borrar sesión de Redis: {e}")
+
+    if 'user_id' not in session and not token_to_revoke:
         return make_response_format({
             'status': 'error',
             'message': 'No hay sesión activa.'

@@ -3,7 +3,16 @@ app.py
 Punto de entrada del microservicio de autenticación.
 Despliega Flask en el puerto 5000.
 """
-from flask import Flask
+import os
+import sys
+import atexit
+import time
+
+SERVICES_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if SERVICES_DIR not in sys.path:
+    sys.path.insert(0, SERVICES_DIR)
+
+from flask import Flask, request
 from flask_cors import CORS
 from flask_swagger_ui import get_swaggerui_blueprint
 
@@ -14,18 +23,7 @@ from routes.auth import auth_bp
 from routes.session import session_bp
 from routes.health import health_bp
 from routes.token import token_bp
-
-import atexit
-import os
-import sys
-import time
-
-SERVICES_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if SERVICES_DIR not in sys.path:
-    sys.path.insert(0, SERVICES_DIR)
-
 from common import metrics
-from flask import request
 
 
 def create_app():

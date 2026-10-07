@@ -104,5 +104,10 @@ class DesktopApp:
 
 
 if __name__ == "__main__":
-    app = DesktopApp()
-    app.run()
+    import traceback
+    try:
+        app = DesktopApp()
+        app.run()
+    except Exception as e:
+        with open("crash.log", "w", encoding="utf-8") as f:
+            traceback.print_exc(file=f)
