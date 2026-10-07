@@ -128,13 +128,19 @@ class SettingsTab(ttk.Frame):
 
     def _apply_local_preset(self):
         settings.set_local()
+        settings.save()
         self._refresh_fields_from_settings()
-        self.lbl_status.config(text="Valores locales aplicados (pendientes de guardar).", foreground="#0284c7")
+        self.lbl_status.config(text="Modo Local (localhost) aplicado y guardado exitosamente.", foreground="#16a34a")
+        if self.on_settings_saved:
+            self.on_settings_saved()
 
     def _apply_remote_preset(self):
         settings.set_remote(DEFAULT_REMOTE_HOST)
+        settings.save()
         self._refresh_fields_from_settings()
-        self.lbl_status.config(text="Valores remotos de GCP aplicados (pendientes de guardar).", foreground="#0284c7")
+        self.lbl_status.config(text="Modo Remoto (GCP) aplicado y guardado exitosamente.", foreground="#0284c7")
+        if self.on_settings_saved:
+            self.on_settings_saved()
 
     def _refresh_fields_from_settings(self):
         self.txt_auth.delete(0, tk.END)
