@@ -102,11 +102,18 @@ class ApiClient:
             elif 200 <= resp.status_code < 300:
                 print(f"[JWT-CLIENT] [OK]  {method.upper()} {url} -- {resp.status_code} OK")
 
+            error_msg = None
+            if not (200 <= resp.status_code < 300):
+                if isinstance(data, dict):
+                    error_msg = data.get("message") or data.get("error")
+                if not error_msg:
+                    error_msg = f"HTTP {resp.status_code}: Error en la operación."
+
             return {
                 "success": 200 <= resp.status_code < 300,
                 "status_code": resp.status_code,
                 "data": data,
-                "error": None
+                "error": error_msg
             }
 
         except requests.exceptions.ConnectionError:

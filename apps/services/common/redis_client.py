@@ -321,6 +321,16 @@ class RedisClient:
             logger.warning(f"Error al consultar resultado de idempotencia '{key}': {e}")
             return None
 
+    def release_idempotency_key(self, key: str) -> bool:
+        """Libera la clave de idempotencia si la operación falló o fue cancelada antes de completarse."""
+        try:
+            client = self.get_client()
+            client.delete(f"idempotency:{key}")
+            return True
+        except Exception as e:
+            logger.warning(f"Error al liberar clave de idempotencia '{key}': {e}")
+            return False
+
 
 # Instancia singleton del cliente Redis compartido
 redis_client = RedisClient()

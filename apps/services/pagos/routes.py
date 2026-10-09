@@ -48,7 +48,9 @@ def process_payment():
     order_id = data.get('order_id')
     amount_in = data.get('amount')
     raw_method = (data.get('method') or 'simulated_card').strip()
-    method = 'simulated_card' if raw_method in ('tarjeta_simulada', 'tarjeta', 'card', 'simulated_card', '') else raw_method
+    valid_methods = ('simulated_card', 'tarjeta_simulada', 'tarjeta', 'card', '',
+                     'tarjeta_credito', 'tarjeta_debito', 'transferencia', 'paypal_simulado')
+    method = 'simulated_card' if raw_method in valid_methods else raw_method
     notes = (data.get('notes') or '').strip() or None
 
     if not order_id:
@@ -85,6 +87,7 @@ def process_payment():
                 order = cur.fetchone()
 
                 if not order:
+                    redis_client.release_idempotency_key(idempotency_key)
                     return make_response_format({
                         'status': 'error',
                         'message': f'Pedido con ID {order_id} no encontrado.'
@@ -92,17 +95,42 @@ def process_payment():
 
                 # Validar propiedad
                 if role != 'admin' and order['user_id'] != user_id:
+                    redis_client.release_idempotency_key(idempotency_key)
                     return make_response_format({
                         'status': 'error',
                         'message': 'No autorizado para pagar este pedido.'
                     }, 403, request)
 
-                # Validar que esté en 'pending'
                 current_status = order['status'].lower()
+
+                # Si el pedido ya está pagado/confirmado, responder idempotentemente con el comprobante existente
+                if current_status in ('confirmed', 'completed', 'shipped'):
+                    cur.execute(
+                        """SELECT id, order_id, method, status, amount, notes, processed_at
+                             FROM simulated_payments WHERE order_id = %s""",
+                        (order_id,)
+                    )
+                    existing_payment = cur.fetchone()
+                    if existing_payment:
+                        result_payload = {
+                            'status': 'success',
+                            'message': f'El pedido #{order_id} ya fue pagado exitosamente con anterioridad.',
+                            'payment': dict(existing_payment),
+                            'order': {
+                                'id': order_id,
+                                'status': current_status
+                            },
+                            'idempotent_replay': True
+                        }
+                        redis_client.set_idempotency_result(idempotency_key, result_payload, ttl_seconds=config.IDEMPOTENCY_TTL_SECONDS)
+                        return make_response_format(result_payload, 200, request)
+
+                # Validar que esté en 'pending'
                 if current_status != 'pending':
+                    redis_client.release_idempotency_key(idempotency_key)
                     return make_response_format({
                         'status': 'error',
-                        'message': f"El pedido no puede pagarse porque se encuentra en estado '{current_status}'."
+                        'message': f"El pedido #{order_id} no puede pagarse porque se encuentra en estado '{current_status.upper()}'."
                     }, 400, request)
 
                 # Validar monto coincidente (requerido por trg_validate_simulated_payment)
@@ -110,6 +138,7 @@ def process_payment():
                 payment_amount = Decimal(str(amount_in)) if amount_in is not None else expected_total
 
                 if payment_amount != expected_total:
+                    redis_client.release_idempotency_key(idempotency_key)
                     return make_response_format({
                         'status': 'error',
                         'message': f'El monto del pago (${payment_amount}) no coincide con el total del pedido (${expected_total}).'
@@ -158,7 +187,7 @@ def process_payment():
 
     except Exception as e:
         # Liberar la clave de idempotencia si falló la transacción
-        redis_client.delete_cache(f"idempotency:{idempotency_key}")
+        redis_client.release_idempotency_key(idempotency_key)
         return make_response_format({'status': 'error', 'message': str(e)}, 500, request)
 
 
