@@ -1,6 +1,6 @@
 """
 users/app.py
-Punto de entrada del microservicio de Usuarios (puerto 5002).
+Punto de entrada del microservicio de Usuarios (puerto 5004).
 """
 import os
 import sys
@@ -15,16 +15,19 @@ for _ in range(4):
         sys.path.insert(0, _curr)
 
 from common import create_microservice_app, config
-from routes import users_bp
+try:
+    from .routes import users_bp
+except (ImportError, ValueError):
+    from routes import users_bp
 
 app = create_microservice_app(
     service_name='users-service',
-    port=config.service_port('USERS', 5002),
+    port=config.service_port('USERS', 5004),
     blueprints=[users_bp]
 )
 
 if __name__ == '__main__':
-    port = config.service_port('USERS', 5002)
+    port = config.service_port('USERS', 5004)
     print(f"\n{'='*60}")
     print(f"  Users Microservice escuchando en http://0.0.0.0:{port}")
     print(f"  Endpoints: GET/POST /users, GET/PUT/DELETE /users/<id>")

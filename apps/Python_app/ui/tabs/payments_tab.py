@@ -1,6 +1,6 @@
 """
 ui/tabs/payments_tab.py
-Pestaña de Pasarela de Pagos Simulada (Microservicio Pagos :5005).
+Pestaña de Pasarela de Pagos Simulada (Microservicio Pagos :5002).
 Integra Idempotencia en Redis y actualización atómica del estado del pedido a 'confirmed'.
 """
 import threading

@@ -19,4 +19,5 @@ PORT = int(os.getenv('PORT', '5001'))
 BASE_URL = os.getenv('BASE_URL', f'http://localhost:{PORT}')
 
 # --- JWT (mismo secreto que el servicio de login) ---
-JWT_SECRET = os.getenv('JWT_SECRET', 'libreria-jwt-secret-2026-seguro-key-32b')
+JWT_SECRET = os.environ.get('JWT_SECRET_KEY') or os.environ.get('JWT_SECRET', 'libreria-jwt-secret-2026-seguro-key-32b')
+JWT_SECRET_KEY = JWT_SECRET

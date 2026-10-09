@@ -2,7 +2,7 @@
 ui/tabs/settings_tab.py
 Pestaña de Configuración del Servidor y Entornos.
 Permite:
-- Alternar entre Entorno Local (localhost) y Entorno Remoto (GCP)
+- Alternar entre Entorno Local (localhost) y Entorno Remoto (GCP 35.226.206.203)
 - Modificar manualmente las URLs de los 6 microservicios y host/puerto de Redis
 - Probar la conectividad de los endpoints antes de guardar
 - Guardar la configuración en config.json para que persista entre reinicios
@@ -15,10 +15,10 @@ from config.settings import (
     settings,
     DEFAULT_LOCAL_AUTH,
     DEFAULT_LOCAL_BOOKS,
-    DEFAULT_LOCAL_USERS,
-    DEFAULT_LOCAL_AUTHORS,
-    DEFAULT_LOCAL_ORDERS,
-    DEFAULT_LOCAL_PAYMENTS,
+    DEFAULT_LOCAL_PAYMENTS_URL,
+    DEFAULT_LOCAL_ORDERS_URL,
+    DEFAULT_LOCAL_USERS_URL,
+    DEFAULT_LOCAL_AUTHORS_URL,
     DEFAULT_LOCAL_REDIS_HOST,
     DEFAULT_LOCAL_REDIS_PORT,
     DEFAULT_REMOTE_HOST
@@ -49,12 +49,12 @@ class SettingsTab(ttk.Frame):
         self.btn_preset_local.pack(side=tk.LEFT, padx=(0, 10), fill=tk.X, expand=True)
 
         self.btn_preset_remote = ttk.Button(
-            btn_row, text="☁️ Modo Remoto (Nube GCP 34.171.172.238)", command=self._apply_remote_preset
+            btn_row, text="☁️ Modo Remoto (Nube GCP 35.226.206.203)", command=self._apply_remote_preset
         )
         self.btn_preset_remote.pack(side=tk.LEFT, fill=tk.X, expand=True)
 
         # ---------------------------------------------------------
-        # Entradas de URLs de los 6 Microservicios
+        # Entradas de URLs de los 6 Microservicios y Redis
         # ---------------------------------------------------------
         canvas_container = ttk.LabelFrame(self, text="🌐 Direcciones de los 6 Microservicios y Redis", padding=12)
         canvas_container.pack(fill=tk.BOTH, expand=True, pady=(0, 12))
@@ -63,43 +63,43 @@ class SettingsTab(ttk.Frame):
         grid.pack(fill=tk.BOTH, expand=True)
         grid.columnconfigure(1, weight=1)
 
-        # 1. Login
+        # 1. Login (:5000)
         ttk.Label(grid, text="1. Login / Auth (:5000):", font=("Segoe UI", 9, "bold")).grid(row=0, column=0, sticky="w", pady=4, padx=5)
         self.txt_auth = ttk.Entry(grid, font=("Consolas", 9))
         self.txt_auth.grid(row=0, column=1, sticky="ew", pady=4, padx=5)
         self.txt_auth.insert(0, settings.auth_url)
 
-        # 2. Books
+        # 2. Books (:5001)
         ttk.Label(grid, text="2. Books / Catálogo (:5001):", font=("Segoe UI", 9, "bold")).grid(row=1, column=0, sticky="w", pady=4, padx=5)
         self.txt_books = ttk.Entry(grid, font=("Consolas", 9))
         self.txt_books.grid(row=1, column=1, sticky="ew", pady=4, padx=5)
         self.txt_books.insert(0, settings.books_url)
 
-        # 3. Users
-        ttk.Label(grid, text="3. Users / Perfiles (:5002):", font=("Segoe UI", 9, "bold")).grid(row=2, column=0, sticky="w", pady=4, padx=5)
-        self.txt_users = ttk.Entry(grid, font=("Consolas", 9))
-        self.txt_users.grid(row=2, column=1, sticky="ew", pady=4, padx=5)
-        self.txt_users.insert(0, settings.users_url)
-
-        # 4. Authors
-        ttk.Label(grid, text="4. Authors (:5003):", font=("Segoe UI", 9, "bold")).grid(row=3, column=0, sticky="w", pady=4, padx=5)
-        self.txt_authors = ttk.Entry(grid, font=("Consolas", 9))
-        self.txt_authors.grid(row=3, column=1, sticky="ew", pady=4, padx=5)
-        self.txt_authors.insert(0, settings.authors_url)
-
-        # 5. Orders
-        ttk.Label(grid, text="5. Pedidos / Stock (:5004):", font=("Segoe UI", 9, "bold")).grid(row=4, column=0, sticky="w", pady=4, padx=5)
-        self.txt_orders = ttk.Entry(grid, font=("Consolas", 9))
-        self.txt_orders.grid(row=4, column=1, sticky="ew", pady=4, padx=5)
-        self.txt_orders.insert(0, settings.orders_url)
-
-        # 6. Payments
-        ttk.Label(grid, text="6. Pagos (:5005):", font=("Segoe UI", 9, "bold")).grid(row=5, column=0, sticky="w", pady=4, padx=5)
+        # 3. Pagos (:5002)
+        ttk.Label(grid, text="3. Pagos Simulados (:5002):", font=("Segoe UI", 9, "bold")).grid(row=2, column=0, sticky="w", pady=4, padx=5)
         self.txt_payments = ttk.Entry(grid, font=("Consolas", 9))
-        self.txt_payments.grid(row=5, column=1, sticky="ew", pady=4, padx=5)
+        self.txt_payments.grid(row=2, column=1, sticky="ew", pady=4, padx=5)
         self.txt_payments.insert(0, settings.payments_url)
 
-        # 7. Redis
+        # 4. Pedidos (:5003)
+        ttk.Label(grid, text="4. Pedidos / Stock (:5003):", font=("Segoe UI", 9, "bold")).grid(row=3, column=0, sticky="w", pady=4, padx=5)
+        self.txt_orders = ttk.Entry(grid, font=("Consolas", 9))
+        self.txt_orders.grid(row=3, column=1, sticky="ew", pady=4, padx=5)
+        self.txt_orders.insert(0, settings.orders_url)
+
+        # 5. Users (:5004)
+        ttk.Label(grid, text="5. Users / Perfiles (:5004):", font=("Segoe UI", 9, "bold")).grid(row=4, column=0, sticky="w", pady=4, padx=5)
+        self.txt_users = ttk.Entry(grid, font=("Consolas", 9))
+        self.txt_users.grid(row=4, column=1, sticky="ew", pady=4, padx=5)
+        self.txt_users.insert(0, settings.users_url)
+
+        # 6. Authors (:5005)
+        ttk.Label(grid, text="6. Authors (:5005):", font=("Segoe UI", 9, "bold")).grid(row=5, column=0, sticky="w", pady=4, padx=5)
+        self.txt_authors = ttk.Entry(grid, font=("Consolas", 9))
+        self.txt_authors.grid(row=5, column=1, sticky="ew", pady=4, padx=5)
+        self.txt_authors.insert(0, settings.authors_url)
+
+        # 7. Redis (:6379)
         ttk.Label(grid, text="7. Redis Host & Puerto (:6379):", font=("Segoe UI", 9, "bold")).grid(row=6, column=0, sticky="w", pady=4, padx=5)
         redis_row = ttk.Frame(grid)
         redis_row.grid(row=6, column=1, sticky="ew", pady=4, padx=5)
@@ -128,19 +128,13 @@ class SettingsTab(ttk.Frame):
 
     def _apply_local_preset(self):
         settings.set_local()
-        settings.save()
         self._refresh_fields_from_settings()
-        self.lbl_status.config(text="Modo Local (localhost) aplicado y guardado exitosamente.", foreground="#16a34a")
-        if self.on_settings_saved:
-            self.on_settings_saved()
+        self.lbl_status.config(text="Valores locales aplicados (pendientes de guardar).", foreground="#0284c7")
 
     def _apply_remote_preset(self):
         settings.set_remote(DEFAULT_REMOTE_HOST)
-        settings.save()
         self._refresh_fields_from_settings()
-        self.lbl_status.config(text="Modo Remoto (GCP) aplicado y guardado exitosamente.", foreground="#0284c7")
-        if self.on_settings_saved:
-            self.on_settings_saved()
+        self.lbl_status.config(text="Valores remotos de GCP aplicados (pendientes de guardar).", foreground="#0284c7")
 
     def _refresh_fields_from_settings(self):
         self.txt_auth.delete(0, tk.END)
@@ -149,17 +143,17 @@ class SettingsTab(ttk.Frame):
         self.txt_books.delete(0, tk.END)
         self.txt_books.insert(0, settings.books_url)
 
+        self.txt_payments.delete(0, tk.END)
+        self.txt_payments.insert(0, settings.payments_url)
+
+        self.txt_orders.delete(0, tk.END)
+        self.txt_orders.insert(0, settings.orders_url)
+
         self.txt_users.delete(0, tk.END)
         self.txt_users.insert(0, settings.users_url)
 
         self.txt_authors.delete(0, tk.END)
         self.txt_authors.insert(0, settings.authors_url)
-
-        self.txt_orders.delete(0, tk.END)
-        self.txt_orders.insert(0, settings.orders_url)
-
-        self.txt_payments.delete(0, tk.END)
-        self.txt_payments.insert(0, settings.payments_url)
 
         self.txt_redis_host.delete(0, tk.END)
         self.txt_redis_host.insert(0, settings.redis_host)
@@ -170,10 +164,10 @@ class SettingsTab(ttk.Frame):
     def _save_settings(self):
         settings.auth_url = self.txt_auth.get().strip().rstrip("/")
         settings.books_url = self.txt_books.get().strip().rstrip("/")
+        settings.payments_url = self.txt_payments.get().strip().rstrip("/")
+        settings.orders_url = self.txt_orders.get().strip().rstrip("/")
         settings.users_url = self.txt_users.get().strip().rstrip("/")
         settings.authors_url = self.txt_authors.get().strip().rstrip("/")
-        settings.orders_url = self.txt_orders.get().strip().rstrip("/")
-        settings.payments_url = self.txt_payments.get().strip().rstrip("/")
         settings.redis_host = self.txt_redis_host.get().strip()
         try:
             settings.redis_port = int(self.txt_redis_port.get().strip())

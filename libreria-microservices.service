@@ -1,0 +1,19 @@
+[Unit]
+Description=Libreria Online - Ecosistema de Microservicios (Puertos 5000-5005)
+After=network.target postgresql.service redis.service
+Wants=postgresql.service redis.service
+
+[Service]
+Type=simple
+User=ricar
+WorkingDirectory=/opt/libreria-online/apps/services
+Environment=PYTHONUNBUFFERED=1
+Environment=FLASK_DEBUG=0
+ExecStart=/opt/libreria-online/apps/services/login/venv/bin/python /opt/libreria-online/apps/services/start_all_microservices.py
+Restart=always
+RestartSec=5
+KillMode=mixed
+TimeoutStopSec=10
+
+[Install]
+WantedBy=multi-user.target

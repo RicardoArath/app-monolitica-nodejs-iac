@@ -1,6 +1,6 @@
 """
 ui/tabs/users_tab.py
-Pestaña de Gestión de Usuarios y Roles (Microservicio Users :5002).
+Pestaña de Gestión de Usuarios y Roles (Microservicio Users :5004).
 Exclusiva para Administradores.
 """
 import threading
@@ -100,8 +100,8 @@ class UsersTab(ttk.Frame):
                 u.get("username"),
                 u.get("email"),
                 (u.get("role") or "").upper(),
-                u.get("nombre"),
-                u.get("apellido_paterno"),
+                u.get("nombre") or "",
+                u.get("apellido_paterno") or "",
                 "✓" if u.get("email_verified") else "✗"
             ))
 

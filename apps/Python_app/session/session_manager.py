@@ -1,10 +1,12 @@
 """
 session/session_manager.py
 Persistencia local de la sesión (session.json) y validación contra el servidor.
-Maneja almacenamiento de cookies HTTP y datos básicos del usuario.
+Maneja almacenamiento de cookies HTTP, token JWT y datos básicos del usuario.
 """
 import os
 import json
+import base64
+import time
 from network.api_client import http_client
 from network.auth_service import auth_service
 
@@ -15,6 +17,50 @@ SESSION_FILE = os.path.join(SESSION_DIR, "session.json")
 class SessionManager:
     def __init__(self):
         self.user = None
+
+    def get_user(self):
+        """Retorna la información del usuario autenticado actualmente."""
+        return self.user
+
+    def get_token(self):
+        """Retorna el token JWT activo desde el cliente HTTP."""
+        return http_client.jwt_token
+
+    def get_jwt_payload(self):
+        """
+        Decodifica el payload del JWT almacenado sin requerir firma secreta
+        (inspección de claims en cliente: sub, username, role, exp, etc.).
+        """
+        token = http_client.jwt_token
+        if not token or not isinstance(token, str):
+            return None
+        parts = token.split(".")
+        if len(parts) < 2:
+            return None
+        try:
+            payload_b64 = parts[1]
+            padded = payload_b64 + "=" * (-len(payload_b64) % 4)
+            decoded_bytes = base64.urlsafe_b64decode(padded)
+            return json.loads(decoded_bytes.decode("utf-8"))
+        except Exception as e:
+            print(f"[SESSION-MANAGER] Error al decodificar payload JWT: {e}")
+            return None
+
+    def get_jwt_remaining_seconds(self):
+        """
+        Calcula el tiempo restante de vigencia del JWT en segundos.
+        Retorna float con los segundos restantes, o None si no hay token o exp.
+        """
+        payload = self.get_jwt_payload()
+        if not payload or "exp" not in payload:
+            return None
+        try:
+            exp_timestamp = float(payload["exp"])
+            remaining = exp_timestamp - time.time()
+            return remaining
+        except Exception as e:
+            print(f"[SESSION-MANAGER] Error al calcular tiempo restante de JWT: {e}")
+            return None
 
     def save_session(self, user_data):
         """Guarda la información de sesión, cookies y token JWT en session.json."""

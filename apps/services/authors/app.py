@@ -1,6 +1,6 @@
 """
 authors/app.py
-Punto de entrada del microservicio de Autores (puerto 5003).
+Punto de entrada del microservicio de Autores (puerto 5005).
 """
 import os
 import sys
@@ -15,16 +15,19 @@ for _ in range(4):
         sys.path.insert(0, _curr)
 
 from common import create_microservice_app, config
-from routes import authors_bp
+try:
+    from .routes import authors_bp
+except (ImportError, ValueError):
+    from routes import authors_bp
 
 app = create_microservice_app(
     service_name='authors-service',
-    port=config.service_port('AUTHORS', 5003),
+    port=config.service_port('AUTHORS', 5005),
     blueprints=[authors_bp]
 )
 
 if __name__ == '__main__':
-    port = config.service_port('AUTHORS', 5003)
+    port = config.service_port('AUTHORS', 5005)
     print(f"\n{'='*60}")
     print(f"  Authors Microservice escuchando en http://0.0.0.0:{port}")
     print(f"  Endpoints: GET/POST /authors, GET/PUT/DELETE /authors/<id>")

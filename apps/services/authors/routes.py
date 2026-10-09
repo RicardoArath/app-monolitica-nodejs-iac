@@ -1,6 +1,6 @@
 """
 authors/routes.py
-Rutas del microservicio de Autores (puerto 5003).
+Rutas del microservicio de Autores (puerto 5005).
 Administra autores, asignación de libros a autores y relaciones book_authors.
 Integra Cache-Aside en Redis con invalidación cruzada (authors:* y books:*).
 """
@@ -146,9 +146,9 @@ def create_author():
 
 
 # -----------------------------------------------------------------
-# PUT /authors/<id> -- ACTUALIZAR AUTOR (ADMIN ONLY)
+# PUT/PATCH /authors/<id> -- ACTUALIZAR AUTOR (ADMIN ONLY)
 # -----------------------------------------------------------------
-@authors_bp.route('/<int:author_id>', methods=['PUT'])
+@authors_bp.route('/<int:author_id>', methods=['PUT', 'PATCH'])
 @jwt_required()
 @roles_required('admin')
 def update_author(author_id):

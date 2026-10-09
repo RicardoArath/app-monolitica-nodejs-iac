@@ -1,6 +1,6 @@
 """
 pedidos/app.py
-Punto de entrada del microservicio de Pedidos (puerto 5004).
+Punto de entrada del microservicio de Pedidos (puerto 5003).
 """
 import os
 import sys
@@ -15,16 +15,19 @@ for _ in range(4):
         sys.path.insert(0, _curr)
 
 from common import create_microservice_app, config
-from routes import orders_bp
+try:
+    from .routes import orders_bp
+except (ImportError, ValueError):
+    from routes import orders_bp
 
 app = create_microservice_app(
     service_name='pedidos-service',
-    port=config.service_port('PEDIDOS', 5004),
+    port=config.service_port('PEDIDOS', 5003),
     blueprints=[orders_bp]
 )
 
 if __name__ == '__main__':
-    port = config.service_port('PEDIDOS', 5004)
+    port = config.service_port('PEDIDOS', 5003)
     print(f"\n{'='*60}")
     print(f"  Pedidos Microservice escuchando en http://0.0.0.0:{port}")
     print(f"  Endpoints: GET/POST /orders, GET /orders/<id>, PATCH /orders/<id>/status")

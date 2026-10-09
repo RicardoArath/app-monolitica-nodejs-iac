@@ -1,17 +1,23 @@
 """
 ui/main_window.py
 Ventana Principal de la Aplicación de Escritorio.
-Implementa el Panel Principal estructurado en 5 secciones claras (Requisito 4):
+Implementa el Panel Principal estructurado en secciones:
   1. Catálogo de libros (CatalogTab)
   2. Administración de libros (AdminBooksTab)
-  3. Sesión y perfil (ProfileTab)
-  4. Estado de los servicios (HealthTab)
-  5. Configuración del servidor (SettingsTab)
+  3. Autores y relaciones (AuthorsTab)
+  4. Pedidos y stock atómico (OrdersTab)
+  5. Pasarela de pagos simulada (PaymentsTab)
+  6. Usuarios y roles [Admin] (UsersTab)
+  7. Sesión y perfil (ProfileTab)
+  8. Semáforo de salud de los 7 nodos (HealthTab)
+  9. Configuración del servidor y Redis (SettingsTab)
 """
+import threading
 import tkinter as tk
 from tkinter import ttk, messagebox
 
 from session.session_manager import session_manager
+from network.auth_service import auth_service
 from ui.tabs.catalog_tab import CatalogTab
 from ui.tabs.admin_books_tab import AdminBooksTab
 from ui.tabs.authors_tab import AuthorsTab
@@ -31,6 +37,9 @@ class MainWindow(ttk.Frame):
         self.user_data = user_data or {}
         self.on_logout_callback = on_logout_callback
 
+        self._jwt_timer_id = None
+        self._jwt_refreshing = False
+
         self.root.title("Librería en Línea — Ecosistema de Microservicios & Redis")
         self.root.geometry("1180x760")
         self.root.minsize(1040, 680)
@@ -44,6 +53,9 @@ class MainWindow(ttk.Frame):
         self.pack(fill=tk.BOTH, expand=True)
 
         self._build_ui()
+
+        # Iniciar ciclo de chequeo periódico de expiración de JWT cada 30 segundos
+        self._jwt_timer_id = self.after(30000, self._check_jwt_expiration)
 
         # Forzar visibilidad al frente de la pantalla
         self.root.lift()
@@ -139,6 +151,8 @@ class MainWindow(ttk.Frame):
 
     def _on_settings_saved(self):
         """Callback cuando se guardan nuevas URLs de microservicios."""
+        if hasattr(self.tab_health, 'update_urls'):
+            self.tab_health.update_urls()
         self.tab_health.check_all_services()
         self.tab_catalog.load_books()
         self.tab_admin.refresh_table()
@@ -149,8 +163,85 @@ class MainWindow(ttk.Frame):
         if hasattr(self, 'tab_users'):
             self.tab_users.load_users()
 
+    def _check_jwt_expiration(self):
+        """
+        Temporizador de renovación automática de JWT:
+        Verifica la expiración localmente cada 30 segundos (self.after(30000, self._check_jwt_expiration)).
+        Si al token le quedan menos de 5 minutos (300 segundos) de vigencia y el usuario está autenticado,
+        llama automáticamente en segundo plano a auth_service.refresh_token().
+        Al recibir el nuevo token, actualiza la sesión y registra en consola:
+        [JWT-WATCHDOG] Token renovado automáticamente con éxito (vigencia extendida a 20 min)
+        """
+        try:
+            user = session_manager.get_user() or self.user_data
+            if user and not self._jwt_refreshing:
+                rem_sec = session_manager.get_jwt_remaining_seconds()
+                if rem_sec is not None:
+                    if rem_sec < 300:
+                        print(f"[JWT-WATCHDOG] Token por expirar en {int(rem_sec)}s (< 300s). Solicitando renovación automática...")
+                        self._jwt_refreshing = True
+                        threading.Thread(target=self._run_token_refresh_thread, daemon=True).start()
+        except Exception as e:
+            print(f"[JWT-WATCHDOG] Error al verificar expiración de JWT: {e}")
+        finally:
+            self._jwt_timer_id = self.after(30000, self._check_jwt_expiration)
+
+    def _run_token_refresh_thread(self):
+        """Ejecuta la renovación del token en segundo plano y actualiza la sesión persistida."""
+        try:
+            res = auth_service.refresh_token()
+            if res.get("success") and res.get("data"):
+                new_token = res["data"].get("token")
+                if new_token:
+                    user = session_manager.get_user() or self.user_data
+                    session_manager.save_session(user)
+                    print("[JWT-WATCHDOG] Token renovado automáticamente con éxito (vigencia extendida a 20 min)")
+            else:
+                err_msg = res.get("error") or (res.get("data") or {}).get("message") or "Respuesta no exitosa"
+                print(f"[JWT-WATCHDOG] Advertencia al renovar token: {err_msg}")
+        except Exception as err:
+            print(f"[JWT-WATCHDOG] Excepción durante la renovación automática de JWT: {err}")
+        finally:
+            self._jwt_refreshing = False
+
     def _do_logout(self):
-        confirm = messagebox.askyesno("Confirmar Salida", "¿Está seguro de que desea cerrar la sesión actual?\nSe revocará el JWT en Redis.")
-        if confirm:
-            session_manager.clear_session()
-            self.on_logout_callback()
+        """
+        Cierre de sesión seguro con revocación en servidor y Redis:
+        Revoca el JTI en Redis (jwt:revoked:<jti>) vía auth_service.logout(),
+        limpia la sesión local en session_manager y regresa a la pantalla de login.
+        """
+        confirm = messagebox.askyesno(
+            "Confirmar Salida",
+            "¿Está seguro de que desea cerrar la sesión actual?\nSe revocará el JWT en Redis."
+        )
+        if not confirm:
+            return
+
+        # Cancelar el watchdog de renovación de JWT si está activo
+        if self._jwt_timer_id:
+            try:
+                self.after_cancel(self._jwt_timer_id)
+            except Exception:
+                pass
+            self._jwt_timer_id = None
+
+        def logout_thread():
+            try:
+                auth_service.logout()
+            except Exception as e:
+                print(f"[AUTH-LOGOUT] Advertencia al revocar sesión en servidor: {e}")
+            finally:
+                session_manager.clear_session()
+                self.after(0, self.on_logout_callback)
+
+        threading.Thread(target=logout_thread, daemon=True).start()
+
+    def destroy(self):
+        """Detiene timers pendientes al destruir el frame."""
+        if self._jwt_timer_id:
+            try:
+                self.after_cancel(self._jwt_timer_id)
+            except Exception:
+                pass
+            self._jwt_timer_id = None
+        super().destroy()

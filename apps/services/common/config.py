@@ -60,7 +60,18 @@ REDIS_PROTOCOL = int(os.getenv('REDIS_PROTOCOL', '2'))
 
 
 # --- JWT (secreto compartido por TODOS los servicios) ---
-JWT_SECRET_KEY = _require('JWT_SECRET_KEY', min_length=32)
+def _require_secret(names, min_length=32):
+    for name in names:
+        val = (os.getenv(name) or '').strip()
+        if len(val) >= min_length:
+            return val
+    raise RuntimeError(
+        f"Variables de entorno para secreto JWT ({', '.join(names)}) no definidas o "
+        f"menores a {min_length} caracteres. Configúrela en apps/services/.env."
+    )
+
+JWT_SECRET_KEY = _require_secret(['JWT_SECRET_KEY', 'JWT_SECRET'], min_length=32)
+JWT_SECRET = JWT_SECRET_KEY
 JWT_ALGORITHM = 'HS256'
 JWT_ISSUER = os.getenv('JWT_ISSUER', 'libreria-login-service')
 ACCESS_TOKEN_MINUTES = int(os.getenv('ACCESS_TOKEN_MINUTES', '20'))
@@ -95,7 +106,18 @@ ROLE_USER = 2
 ROLE_NAMES = {ROLE_ADMIN: 'admin', ROLE_USER: 'user'}
 ROLE_IDS = {v: k for k, v in ROLE_NAMES.items()}
 
+# --- Mapeo Oficial de Puertos (Diagrama Oficial de Arquitectura) ---
+DEFAULT_PORTS = {
+    'LOGIN': 5000,
+    'BOOKS': 5001,
+    'PAGOS': 5002,
+    'PEDIDOS': 5003,
+    'USERS': 5004,
+    'AUTHORS': 5005,
+}
 
-def service_port(env_key, default):
-    """Puerto del servicio: <SERVICIO>_PORT (p.ej. BOOKS_PORT) o el valor por defecto."""
-    return int(os.getenv(f'{env_key}_PORT', str(default)))
+
+def service_port(env_key, default=None):
+    """Puerto del servicio: <SERVICIO>_PORT (p.ej. BOOKS_PORT) o el valor por defecto oficial."""
+    def_val = default if default is not None else DEFAULT_PORTS.get(env_key.upper(), 5000)
+    return int(os.getenv(f'{env_key.upper()}_PORT', str(def_val)))

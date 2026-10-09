@@ -1,6 +1,6 @@
 """
 ui/tabs/authors_tab.py
-Pestaña de Gestión de Autores y Asignación de Libros (Microservicio Authors :5003).
+Pestaña de Gestión de Autores y Asignación de Libros (Microservicio Authors :5005).
 Integra invalidación de caché cruzada con books:* en Redis.
 """
 import threading

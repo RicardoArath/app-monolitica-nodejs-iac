@@ -1,6 +1,6 @@
 """
 pagos/app.py
-Punto de entrada del microservicio de Pagos (puerto 5005).
+Punto de entrada del microservicio de Pagos (puerto 5002).
 """
 import os
 import sys
@@ -15,16 +15,19 @@ for _ in range(4):
         sys.path.insert(0, _curr)
 
 from common import create_microservice_app, config
-from routes import payments_bp
+try:
+    from .routes import payments_bp
+except (ImportError, ValueError):
+    from routes import payments_bp
 
 app = create_microservice_app(
     service_name='pagos-service',
-    port=config.service_port('PAGOS', 5005),
+    port=config.service_port('PAGOS', 5002),
     blueprints=[payments_bp]
 )
 
 if __name__ == '__main__':
-    port = config.service_port('PAGOS', 5005)
+    port = config.service_port('PAGOS', 5002)
     print(f"\n{'='*60}")
     print(f"  Pagos Microservice escuchando en http://0.0.0.0:{port}")
     print(f"  Endpoints: POST /payments, GET /payments/order/<order_id>")

@@ -13,7 +13,13 @@ import jwt
 from flask import Blueprint, request, session
 
 from config import SESSION_LIFETIME_MINUTES, SESSION_WARNING_MINUTES
-from common import config as common_config, redis_client, RedisSecurityException, make_response_format
+from common import (
+    config as common_config,
+    redis_client,
+    RedisSecurityException,
+    make_response_format,
+    issue_access_token
+)
 
 
 session_bp = Blueprint('session', __name__)
@@ -22,7 +28,7 @@ SESSION_LIFETIME_SECONDS = SESSION_LIFETIME_MINUTES * 60
 SESSION_WARNING_SECONDS = SESSION_WARNING_MINUTES * 60
 
 
-@session_bp.route('/session', methods=['GET'])
+@session_bp.route('/session', methods=['GET', 'POST'])
 def get_session():
     """
     Consulta si existe una sesión activa y su estado.
@@ -139,7 +145,83 @@ def get_session():
 @session_bp.route('/session/renew', methods=['POST'])
 @session_bp.route('/session/extend', methods=['POST'])
 def renew_session():
-    """Renovar la sesión Flask por cookie."""
+    """Renovar la sesión (Cookie o JWT con Redis)."""
+    token = None
+    auth_header = request.headers.get('Authorization', '').strip()
+    if auth_header.startswith('Bearer '):
+        token = auth_header[7:].strip()
+    elif request.is_json:
+        token = (request.get_json(silent=True) or {}).get('token')
+
+    # Caso 1: Renovación con JWT
+    if token:
+        try:
+            payload = jwt.decode(token, common_config.JWT_SECRET_KEY, algorithms=[common_config.JWT_ALGORITHM])
+            jti = payload.get('jti')
+            if jti:
+                try:
+                    if redis_client.is_token_revoked(jti):
+                        return make_response_format({
+                            'status': 'session_expired',
+                            'message': 'El token JWT ha sido revocado.'
+                        }, 401, request)
+                except RedisSecurityException:
+                    return make_response_format({
+                        'status': 'error',
+                        'message': 'Redis no disponible (Fail-Closed).'
+                    }, 503, request)
+
+            user_id = int(payload.get('user_id') or payload.get('sub'))
+            user_dict = {
+                'id': user_id,
+                'user_id': user_id,
+                'username': payload.get('username'),
+                'email': payload.get('email'),
+                'nombre': payload.get('nombre'),
+                'apellido_paterno': payload.get('apellido_paterno', ''),
+                'apellido_materno': payload.get('apellido_materno', ''),
+                'role': payload.get('role'),
+                'role_id': payload.get('role_id', 1 if payload.get('role') == 'admin' else 2)
+            }
+            new_token, new_payload = issue_access_token(user_dict)
+
+            # Actualizar sesión en Redis con TTL de 20 min
+            session_data = {
+                'user_id': user_id,
+                'username': user_dict['username'],
+                'email': user_dict['email'],
+                'role': user_dict['role'],
+                'role_id': user_dict['role_id'],
+                'nombre': user_dict['nombre'],
+                'jti': new_payload['jti'],
+                'login_at': datetime.now(timezone.utc).isoformat()
+            }
+            try:
+                redis_client.save_session(user_id, session_data, ttl_seconds=1200)
+            except Exception:
+                pass
+
+            return make_response_format({
+                'status': 'success',
+                'message': 'Token JWT renovado exitosamente.',
+                'token': new_token,
+                'expires_in': 1200,
+                'remaining_seconds': 1200,
+                'session_lifetime_minutes': common_config.ACCESS_TOKEN_MINUTES,
+                'user': user_dict
+            }, 200, request)
+        except jwt.ExpiredSignatureError:
+            return make_response_format({
+                'status': 'session_expired',
+                'message': 'El token JWT ha expirado. Inicie sesión nuevamente.'
+            }, 401, request)
+        except jwt.InvalidTokenError as e:
+            return make_response_format({
+                'status': 'error',
+                'message': f'Token JWT inválido: {e}'
+            }, 401, request)
+
+    # Caso 2: Renovación de sesión por Cookie Flask
     if 'user_id' not in session:
         return make_response_format({
             'status': 'no_session',

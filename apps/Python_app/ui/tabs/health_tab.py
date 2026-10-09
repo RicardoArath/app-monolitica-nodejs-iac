@@ -2,12 +2,12 @@
 ui/tabs/health_tab.py
 Pestaña de Monitoreo de Estado de los 7 Componentes del Ecosistema:
   1. Microservicio de Login / Auth (:5000)
-  2. Microservicio de Libros (:5001)
-  3. Microservicio de Usuarios (:5002)
-  4. Microservicio de Autores (:5003)
-  5. Microservicio de Pedidos (:5004)
-  6. Microservicio de Pagos (:5005)
-  7. Servidor en memoria Redis (:6379)
+  2. Microservicio de Libros / Catálogo (:5001)
+  3. Microservicio de Pagos Simulados (:5002)
+  4. Microservicio de Pedidos / Stock (:5003)
+  5. Microservicio de Usuarios / Perfiles (:5004)
+  6. Microservicio de Autores (:5005)
+  7. Servidor en memoria Redis Compartido (:6379)
 """
 import socket
 import time
@@ -19,10 +19,10 @@ from tkinter import ttk
 from config.settings import settings
 from network.auth_service import auth_service
 from network.books_service import books_service
+from network.payments_service import payments_service
+from network.orders_service import orders_service
 from network.users_service import users_service
 from network.authors_service import authors_service
-from network.orders_service import orders_service
-from network.payments_service import payments_service
 from ui.widgets.status_badge import StatusBadge, COLOR_OK, COLOR_DEGRADED, COLOR_ERROR, COLOR_UNKNOWN
 
 
@@ -58,31 +58,31 @@ class HealthTab(ttk.Frame):
             grid_frame.columnconfigure(col, weight=1, uniform="health_col")
 
         # 1. Login (:5000)
-        self.card_auth, self.badge_auth, self.lbl_auth_det = self._create_card(
+        self.card_auth, self.badge_auth, self.lbl_auth_det, self.lbl_auth_url = self._create_card(
             grid_frame, "1. Login / Auth (:5000)", settings.auth_url, row=0, col=0
         )
         # 2. Books (:5001)
-        self.card_books, self.badge_books, self.lbl_books_det = self._create_card(
+        self.card_books, self.badge_books, self.lbl_books_det, self.lbl_books_url = self._create_card(
             grid_frame, "2. Books / Catálogo (:5001)", settings.books_url, row=0, col=1
         )
-        # 3. Users (:5002)
-        self.card_users, self.badge_users, self.lbl_users_det = self._create_card(
-            grid_frame, "3. Users / Perfiles (:5002)", settings.users_url, row=0, col=2
+        # 3. Pagos (:5002)
+        self.card_payments, self.badge_payments, self.lbl_payments_det, self.lbl_payments_url = self._create_card(
+            grid_frame, "3. Pagos Simulados (:5002)", settings.payments_url, row=0, col=2
         )
-        # 4. Authors (:5003)
-        self.card_authors, self.badge_authors, self.lbl_authors_det = self._create_card(
-            grid_frame, "4. Authors (:5003)", settings.authors_url, row=1, col=0
+        # 4. Pedidos (:5003)
+        self.card_orders, self.badge_orders, self.lbl_orders_det, self.lbl_orders_url = self._create_card(
+            grid_frame, "4. Pedidos / Stock (:5003)", settings.orders_url, row=1, col=0
         )
-        # 5. Pedidos (:5004)
-        self.card_orders, self.badge_orders, self.lbl_orders_det = self._create_card(
-            grid_frame, "5. Pedidos / Stock (:5004)", settings.orders_url, row=1, col=1
+        # 5. Users (:5004)
+        self.card_users, self.badge_users, self.lbl_users_det, self.lbl_users_url = self._create_card(
+            grid_frame, "5. Users / Perfiles (:5004)", settings.users_url, row=1, col=1
         )
-        # 6. Pagos (:5005)
-        self.card_payments, self.badge_payments, self.lbl_payments_det = self._create_card(
-            grid_frame, "6. Pagos Simulados (:5005)", settings.payments_url, row=1, col=2
+        # 6. Authors (:5005)
+        self.card_authors, self.badge_authors, self.lbl_authors_det, self.lbl_authors_url = self._create_card(
+            grid_frame, "6. Authors (:5005)", settings.authors_url, row=1, col=2
         )
         # 7. Redis (:6379)
-        self.card_redis, self.badge_redis, self.lbl_redis_det = self._create_card(
+        self.card_redis, self.badge_redis, self.lbl_redis_det, self.lbl_redis_url = self._create_card(
             grid_frame, "7. Redis Compartido (:6379)", f"{settings.redis_host}:{settings.redis_port}", row=2, col=0, colspan=3
         )
 
@@ -102,7 +102,18 @@ class HealthTab(ttk.Frame):
         lbl_det = ttk.Label(card, text="Iniciando comprobación...", font=("Segoe UI", 8), foreground="#475569", wraplength=320)
         lbl_det.pack(anchor=tk.W, pady=(6, 0))
 
-        return card, badge, lbl_det
+        return card, badge, lbl_det, lbl_url
+
+    def update_urls(self):
+        """Actualiza las etiquetas de URL mostradas en cada tarjeta tras cambios en la configuración."""
+        if hasattr(self, 'lbl_auth_url'):
+            self.lbl_auth_url.config(text=settings.auth_url)
+            self.lbl_books_url.config(text=settings.books_url)
+            self.lbl_payments_url.config(text=settings.payments_url)
+            self.lbl_orders_url.config(text=settings.orders_url)
+            self.lbl_users_url.config(text=settings.users_url)
+            self.lbl_authors_url.config(text=settings.authors_url)
+            self.lbl_redis_url.config(text=f"{settings.redis_host}:{settings.redis_port}")
 
     def check_all_services(self):
         """Dispara la verificación asíncrona de los 7 componentes en un hilo secundario."""
@@ -126,29 +137,29 @@ class HealthTab(ttk.Frame):
         books_lat = (time.time() - t0) * 1000
         results["books"] = self._parse_http_health(books_res, books_lat)
 
-        # 3. Users (:5002)
+        # 3. Pagos (:5002)
         t0 = time.time()
-        users_res = users_service.health()
-        users_lat = (time.time() - t0) * 1000
-        results["users"] = self._parse_http_health(users_res, users_lat)
+        payments_res = payments_service.health()
+        payments_lat = (time.time() - t0) * 1000
+        results["payments"] = self._parse_http_health(payments_res, payments_lat)
 
-        # 4. Authors (:5003)
-        t0 = time.time()
-        authors_res = authors_service.health()
-        authors_lat = (time.time() - t0) * 1000
-        results["authors"] = self._parse_http_health(authors_res, authors_lat)
-
-        # 5. Pedidos (:5004)
+        # 4. Pedidos (:5003)
         t0 = time.time()
         orders_res = orders_service.health()
         orders_lat = (time.time() - t0) * 1000
         results["orders"] = self._parse_http_health(orders_res, orders_lat)
 
-        # 6. Pagos (:5005)
+        # 5. Users (:5004)
         t0 = time.time()
-        payments_res = payments_service.health()
-        payments_lat = (time.time() - t0) * 1000
-        results["payments"] = self._parse_http_health(payments_res, payments_lat)
+        users_res = users_service.health()
+        users_lat = (time.time() - t0) * 1000
+        results["users"] = self._parse_http_health(users_res, users_lat)
+
+        # 6. Authors (:5005)
+        t0 = time.time()
+        authors_res = authors_service.health()
+        authors_lat = (time.time() - t0) * 1000
+        results["authors"] = self._parse_http_health(authors_res, authors_lat)
 
         # 7. Redis (:6379)
         redis_socket_res = self._check_redis_socket(settings.redis_host, settings.redis_port)
@@ -158,7 +169,7 @@ class HealthTab(ttk.Frame):
             # En entornos en la nube (GCP), el puerto 6379 es privado y suele estar protegido del internet público.
             # Verificamos si los microservicios en la nube tienen conectividad activa a Redis:
             cloud_connected = []
-            for name, r in [("Auth", auth_res), ("Books", books_res), ("Users", users_res), ("Pedidos", orders_res)]:
+            for name, r in [("Auth", auth_res), ("Books", books_res), ("Pagos", payments_res), ("Pedidos", orders_res), ("Users", users_res), ("Authors", authors_res)]:
                 if r.get("success"):
                     d = r.get("data") or {}
                     red_st = d.get("redis")
@@ -250,10 +261,10 @@ class HealthTab(ttk.Frame):
         mapping = [
             ("auth", self.badge_auth, self.lbl_auth_det),
             ("books", self.badge_books, self.lbl_books_det),
+            ("payments", self.badge_payments, self.lbl_payments_det),
+            ("orders", self.badge_orders, self.lbl_orders_det),
             ("users", self.badge_users, self.lbl_users_det),
             ("authors", self.badge_authors, self.lbl_authors_det),
-            ("orders", self.badge_orders, self.lbl_orders_det),
-            ("payments", self.badge_payments, self.lbl_payments_det),
             ("redis", self.badge_redis, self.lbl_redis_det),
         ]
 

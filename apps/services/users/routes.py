@@ -1,6 +1,6 @@
 """
 users/routes.py
-Rutas del microservicio de Usuarios (puerto 5002).
+Rutas del microservicio de Usuarios (puerto 5004).
 Administra usuarios, roles, emails y perfiles con protección JWT y RBAC.
 """
 import sys, os
@@ -168,9 +168,9 @@ def create_user():
 
 
 # -----------------------------------------------------------------
-# PUT /users/<id> -- ACTUALIZAR USUARIO (ADMIN ONLY)
+# PUT/PATCH /users/<id> -- ACTUALIZAR USUARIO (ADMIN ONLY)
 # -----------------------------------------------------------------
-@users_bp.route('/<int:user_id>', methods=['PUT'])
+@users_bp.route('/<int:user_id>', methods=['PUT', 'PATCH'])
 @jwt_required()
 @roles_required('admin')
 def update_user(user_id):

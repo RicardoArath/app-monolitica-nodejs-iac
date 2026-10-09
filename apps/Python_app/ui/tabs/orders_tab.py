@@ -1,6 +1,6 @@
 """
 ui/tabs/orders_tab.py
-Pestaña de Gestión de Pedidos y Stock (Microservicio Pedidos :5004).
+Pestaña de Gestión de Pedidos y Stock (Microservicio Pedidos :5003).
 Permite crear pedidos a partir de libros, ver items y cancelar pedidos con restitución atómica de stock.
 """
 import threading

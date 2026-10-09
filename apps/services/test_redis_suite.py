@@ -20,14 +20,14 @@ import psycopg
 import psycopg.rows
 import redis
 
-# Configuración de URLs y puertos
-LOGIN_URL = "http://127.0.0.1:5000"
-BOOKS_URL = "http://127.0.0.1:5001"
-USERS_URL = "http://127.0.0.1:5002"
-AUTHORS_URL = "http://127.0.0.1:5003"
-PEDIDOS_URL = "http://127.0.0.1:5004"
-PAGOS_URL = "http://127.0.0.1:5005"
-REDIS_URL = "redis://localhost:6379/0"
+# Configuración de URLs y puertos (Oficial Diagrama)
+LOGIN_URL = os.environ.get("LOGIN_URL") or f"http://127.0.0.1:{os.environ.get('LOGIN_PORT', 5000)}"
+BOOKS_URL = os.environ.get("BOOKS_URL") or f"http://127.0.0.1:{os.environ.get('BOOKS_PORT', 5001)}"
+PAGOS_URL = os.environ.get("PAGOS_URL") or f"http://127.0.0.1:{os.environ.get('PAGOS_PORT', 5002)}"
+PEDIDOS_URL = os.environ.get("PEDIDOS_URL") or f"http://127.0.0.1:{os.environ.get('PEDIDOS_PORT', 5003)}"
+USERS_URL = os.environ.get("USERS_URL") or f"http://127.0.0.1:{os.environ.get('USERS_PORT', 5004)}"
+AUTHORS_URL = os.environ.get("AUTHORS_URL") or f"http://127.0.0.1:{os.environ.get('AUTHORS_PORT', 5005)}"
+REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
 
 # Cliente directo de Redis para verificación de llaves y TTLs
 r = redis.from_url(REDIS_URL, protocol=2, decode_responses=True)

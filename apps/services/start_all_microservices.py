@@ -3,10 +3,10 @@ start_all_microservices.py
 Arranca concurrentemente los 6 microservicios Flask del ecosistema:
   - Login (:5000)
   - Books (:5001)
-  - Users (:5002)
-  - Authors (:5003)
-  - Pedidos (:5004)
-  - Pagos (:5005)
+  - Pagos (:5002)
+  - Pedidos (:5003)
+  - Users (:5004)
+  - Authors (:5005)
 Verifica que Redis esté activo en localhost:6379 y reporta la salud de los 7 componentes.
 """
 import os
@@ -30,10 +30,10 @@ PYTHON_EXE = sys.executable
 SERVICES = [
     {"name": "Login", "port": 5000, "cwd": os.path.join(SERVICES_DIR, "login"), "script": "app.py"},
     {"name": "Books", "port": 5001, "cwd": os.path.join(SERVICES_DIR, "books"), "script": "app.py"},
-    {"name": "Users", "port": 5002, "cwd": os.path.join(SERVICES_DIR, "users"), "script": "app.py"},
-    {"name": "Authors", "port": 5003, "cwd": os.path.join(SERVICES_DIR, "authors"), "script": "app.py"},
-    {"name": "Pedidos", "port": 5004, "cwd": os.path.join(SERVICES_DIR, "pedidos"), "script": "app.py"},
-    {"name": "Pagos", "port": 5005, "cwd": os.path.join(SERVICES_DIR, "pagos"), "script": "app.py"},
+    {"name": "Pagos", "port": 5002, "cwd": os.path.join(SERVICES_DIR, "pagos"), "script": "app.py"},
+    {"name": "Pedidos", "port": 5003, "cwd": os.path.join(SERVICES_DIR, "pedidos"), "script": "app.py"},
+    {"name": "Users", "port": 5004, "cwd": os.path.join(SERVICES_DIR, "users"), "script": "app.py"},
+    {"name": "Authors", "port": 5005, "cwd": os.path.join(SERVICES_DIR, "authors"), "script": "app.py"},
 ]
 
 

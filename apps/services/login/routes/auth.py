@@ -246,6 +246,12 @@ def register():
             )
             conn.commit()
 
+    # --- Almacenar token en Redis (TTL 1800s / 30 min según arquitectura) ---
+    try:
+        redis_client.set_cache(f"verify:token:{token}", user_id, ttl=1800, prefix='verify')
+    except Exception:
+        pass
+
     # --- Enviar email de verificación vía Postfix ---
     try:
         send_verification_email(email, token, nombre)
@@ -280,7 +286,7 @@ def register():
 @auth_bp.route('/verify-email', methods=['GET'])
 @auth_bp.route('/verify', methods=['GET'])
 def verify_email():
-    """Verificar email del usuario mediante token."""
+    """Verificar email del usuario mediante token con Fast-Path en Redis."""
     token = request.args.get('token', '').strip()
 
     if not token:
@@ -289,6 +295,38 @@ def verify_email():
             'message': 'Token de verificación no proporcionado.'
         }, 400, request)
 
+    redis_token_key = f"verify:token:{token}"
+
+    # --- Fast-Path: Consultar Redis primero ---
+    cached_user_id = redis_client.get_cache(redis_token_key, prefix='verify')
+    if cached_user_id is not None:
+        try:
+            user_id = int(cached_user_id)
+            with get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "UPDATE users SET email_verified = true WHERE id = %s",
+                        (user_id,)
+                    )
+                    cur.execute(
+                        "UPDATE email_verification_tokens SET used = true WHERE token = %s",
+                        (token,)
+                    )
+                    conn.commit()
+
+            # Eliminar token consumido de Redis
+            redis_client.delete_cache(redis_token_key)
+
+            return make_response_format({
+                'status': 'success',
+                'message': 'Email verificado exitosamente. Ya puede iniciar sesión.',
+                'from_cache': True
+            }, 200, request)
+        except Exception:
+            # En caso de error inesperado en fast-path, continuar al chequeo tradicional
+            pass
+
+    # --- Fallback / Slow-Path: Consultar PostgreSQL ---
     now = datetime.now(timezone.utc)
 
     with get_connection() as conn:
@@ -339,6 +377,9 @@ def verify_email():
                 (token_id,)
             )
             conn.commit()
+
+    # Asegurar limpieza de Redis
+    redis_client.delete_cache(redis_token_key)
 
     return make_response_format({
         'status': 'success',

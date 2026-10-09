@@ -1,6 +1,6 @@
 """
 network/orders_service.py
-Cliente para el microservicio de Pedidos (:5004).
+Cliente para el microservicio de Pedidos (:5003).
 """
 from config.settings import settings
 from network.api_client import http_client

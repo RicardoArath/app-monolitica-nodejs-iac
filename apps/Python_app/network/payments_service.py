@@ -1,6 +1,6 @@
 """
 network/payments_service.py
-Cliente para el microservicio de Pagos (:5005).
+Cliente para el microservicio de Pagos (:5002).
 """
 from config.settings import settings
 from network.api_client import http_client

@@ -1,6 +1,6 @@
 """
 pedidos/routes.py
-Rutas del microservicio de Pedidos (puerto 5004).
+Rutas del microservicio de Pedidos (puerto 5003).
 Administra pedidos, líneas de pedido, transacciones atómicas de stock,
 coordinación temporal en Redis (order:pending:<order_id>) e invalidación de catálogo.
 """
@@ -249,8 +249,9 @@ def create_order():
 
 
 # -----------------------------------------------------------------
-# PATCH /orders/<id>/status -- ACTUALIZAR ESTADO (CONFIRMAR O CANCELAR)
+# PATCH /orders/<id> y PATCH /orders/<id>/status -- ACTUALIZAR ESTADO
 # -----------------------------------------------------------------
+@orders_bp.route('/<int:order_id>', methods=['PATCH'])
 @orders_bp.route('/<int:order_id>/status', methods=['PATCH'])
 @jwt_required()
 def update_order_status(order_id):
@@ -335,6 +336,81 @@ def update_order_status(order_id):
             'order_id': order_id,
             'previous_status': current_status,
             'new_status': new_status
+        }, 200, request)
+
+    except Exception as e:
+        return make_response_format({'status': 'error', 'message': str(e)}, 500, request)
+
+
+# -----------------------------------------------------------------
+# DELETE /orders/<id> -- CANCELAR/ANULAR PEDIDO Y RESTAURAR STOCK
+# -----------------------------------------------------------------
+@orders_bp.route('/<int:order_id>', methods=['DELETE'])
+@jwt_required()
+def delete_order(order_id):
+    """
+    Cancela un pedido mediante DELETE, cambia su estado a 'cancelled',
+    restaura atómicamente el stock de cada item en PostgreSQL e invalida books:* en Redis.
+    """
+    user_id = g.jwt_user.get('user_id')
+    role = (g.jwt_user.get('role') or '').lower()
+
+    try:
+        with get_connection() as conn:
+            with conn.cursor(row_factory=psycopg.rows.dict_row) as cur:
+                cur.execute("SELECT id, user_id, status FROM orders WHERE id = %s FOR UPDATE", (order_id,))
+                order = cur.fetchone()
+
+                if not order:
+                    return make_response_format({
+                        'status': 'error',
+                        'message': f'Pedido con ID {order_id} no encontrado.'
+                    }, 404, request)
+
+                # Validar autorización: solo el propio usuario o admin
+                if role != 'admin' and order['user_id'] != user_id:
+                    return make_response_format({
+                        'status': 'error',
+                        'message': 'No autorizado para cancelar este pedido.'
+                    }, 403, request)
+
+                current_status = order['status'].lower()
+                if current_status == 'cancelled':
+                    return make_response_format({
+                        'status': 'error',
+                        'message': 'El pedido ya se encuentra cancelado.'
+                    }, 400, request)
+
+                # Restaurar stock si estaba en estado previo activo (pending o confirmed)
+                if current_status in ('pending', 'confirmed'):
+                    cur.execute(
+                        "SELECT book_id, quantity FROM order_items WHERE order_id = %s",
+                        (order_id,)
+                    )
+                    items = cur.fetchall()
+                    for item in items:
+                        cur.execute(
+                            "UPDATE books SET stock = stock + %s WHERE id = %s",
+                            (item['quantity'], item['book_id'])
+                        )
+
+                # Actualizar orden a cancelled
+                cur.execute(
+                    "UPDATE orders SET status = 'cancelled', updated_at = now() WHERE id = %s",
+                    (order_id,)
+                )
+                conn.commit()
+
+        # Invalida caché de libros en Redis y clave temporal de orden pendiente
+        redis_client.invalidate_pattern('books:*')
+        redis_client.delete_cache(f"order:pending:{order_id}")
+
+        return make_response_format({
+            'status': 'success',
+            'message': f'Pedido {order_id} cancelado exitosamente y stock restaurado.',
+            'order_id': order_id,
+            'previous_status': current_status,
+            'new_status': 'cancelled'
         }, 200, request)
 
     except Exception as e:

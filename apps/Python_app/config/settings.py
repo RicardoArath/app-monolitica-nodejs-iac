@@ -12,33 +12,45 @@ CONFIG_FILE = os.path.join(CONFIG_DIR, "config.json")
 # Entorno Local
 DEFAULT_LOCAL_AUTH = "http://localhost:5000"
 DEFAULT_LOCAL_BOOKS = "http://localhost:5001"
-DEFAULT_LOCAL_USERS = "http://localhost:5002"
-DEFAULT_LOCAL_AUTHORS = "http://localhost:5003"
-DEFAULT_LOCAL_ORDERS = "http://localhost:5004"
-DEFAULT_LOCAL_PAYMENTS = "http://localhost:5005"
+DEFAULT_LOCAL_PAYMENTS_URL = "http://localhost:5002"
+DEFAULT_LOCAL_ORDERS_URL = "http://localhost:5003"
+DEFAULT_LOCAL_USERS_URL = "http://localhost:5004"
+DEFAULT_LOCAL_AUTHORS_URL = "http://localhost:5005"
 DEFAULT_LOCAL_REDIS_HOST = "localhost"
 DEFAULT_LOCAL_REDIS_PORT = 6379
 
-# Entorno Remoto GCP (IP de la VM de GCP)
-DEFAULT_REMOTE_HOST = "http://34.171.172.238"
+# Aliases para compatibilidad con código existente
+DEFAULT_LOCAL_PAYMENTS = DEFAULT_LOCAL_PAYMENTS_URL
+DEFAULT_LOCAL_ORDERS = DEFAULT_LOCAL_ORDERS_URL
+DEFAULT_LOCAL_USERS = DEFAULT_LOCAL_USERS_URL
+DEFAULT_LOCAL_AUTHORS = DEFAULT_LOCAL_AUTHORS_URL
+
+# Entorno Remoto GCP (IP estática fija reservada en GCP: 35.226.206.203)
+DEFAULT_REMOTE_HOST = "http://35.226.206.203"
 DEFAULT_REMOTE_AUTH = f"{DEFAULT_REMOTE_HOST}:5000"
 DEFAULT_REMOTE_BOOKS = f"{DEFAULT_REMOTE_HOST}:5001"
-DEFAULT_REMOTE_USERS = f"{DEFAULT_REMOTE_HOST}:5002"
-DEFAULT_REMOTE_AUTHORS = f"{DEFAULT_REMOTE_HOST}:5003"
-DEFAULT_REMOTE_ORDERS = f"{DEFAULT_REMOTE_HOST}:5004"
-DEFAULT_REMOTE_PAYMENTS = f"{DEFAULT_REMOTE_HOST}:5005"
-DEFAULT_REMOTE_REDIS_HOST = "34.171.172.238"
+DEFAULT_REMOTE_PAYMENTS_URL = "http://35.226.206.203:5002"
+DEFAULT_REMOTE_ORDERS_URL = "http://35.226.206.203:5003"
+DEFAULT_REMOTE_USERS_URL = "http://35.226.206.203:5004"
+DEFAULT_REMOTE_AUTHORS_URL = "http://35.226.206.203:5005"
+DEFAULT_REMOTE_REDIS_HOST = "35.226.206.203"
 DEFAULT_REMOTE_REDIS_PORT = 6379
+
+# Aliases remotos para compatibilidad
+DEFAULT_REMOTE_PAYMENTS = DEFAULT_REMOTE_PAYMENTS_URL
+DEFAULT_REMOTE_ORDERS = DEFAULT_REMOTE_ORDERS_URL
+DEFAULT_REMOTE_USERS = DEFAULT_REMOTE_USERS_URL
+DEFAULT_REMOTE_AUTHORS = DEFAULT_REMOTE_AUTHORS_URL
 
 
 class Settings:
     def __init__(self):
         self.auth_url = DEFAULT_LOCAL_AUTH
         self.books_url = DEFAULT_LOCAL_BOOKS
-        self.users_url = DEFAULT_LOCAL_USERS
-        self.authors_url = DEFAULT_LOCAL_AUTHORS
-        self.orders_url = DEFAULT_LOCAL_ORDERS
-        self.payments_url = DEFAULT_LOCAL_PAYMENTS
+        self.payments_url = DEFAULT_LOCAL_PAYMENTS_URL
+        self.orders_url = DEFAULT_LOCAL_ORDERS_URL
+        self.users_url = DEFAULT_LOCAL_USERS_URL
+        self.authors_url = DEFAULT_LOCAL_AUTHORS_URL
         self.redis_host = DEFAULT_LOCAL_REDIS_HOST
         self.redis_port = DEFAULT_LOCAL_REDIS_PORT
         self.active_env = "local"
@@ -52,10 +64,10 @@ class Settings:
                     data = json.load(f)
                     self.auth_url = data.get("auth_url", self.auth_url).rstrip("/")
                     self.books_url = data.get("books_url", self.books_url).rstrip("/")
+                    self.payments_url = data.get("payments_url", self.payments_url).rstrip("/")
+                    self.orders_url = data.get("orders_url", self.orders_url).rstrip("/")
                     self.users_url = data.get("users_url", self.users_url).rstrip("/")
                     self.authors_url = data.get("authors_url", self.authors_url).rstrip("/")
-                    self.orders_url = data.get("orders_url", self.orders_url).rstrip("/")
-                    self.payments_url = data.get("payments_url", self.payments_url).rstrip("/")
                     self.redis_host = data.get("redis_host", self.redis_host)
                     self.redis_port = int(data.get("redis_port", self.redis_port))
                     self.active_env = data.get("active_env", self.active_env)
@@ -68,10 +80,10 @@ class Settings:
             "active_env": self.active_env,
             "auth_url": self.auth_url.rstrip("/"),
             "books_url": self.books_url.rstrip("/"),
+            "payments_url": self.payments_url.rstrip("/"),
+            "orders_url": self.orders_url.rstrip("/"),
             "users_url": self.users_url.rstrip("/"),
             "authors_url": self.authors_url.rstrip("/"),
-            "orders_url": self.orders_url.rstrip("/"),
-            "payments_url": self.payments_url.rstrip("/"),
             "redis_host": self.redis_host,
             "redis_port": self.redis_port
         }
@@ -88,10 +100,10 @@ class Settings:
         self.active_env = "local"
         self.auth_url = DEFAULT_LOCAL_AUTH
         self.books_url = DEFAULT_LOCAL_BOOKS
-        self.users_url = DEFAULT_LOCAL_USERS
-        self.authors_url = DEFAULT_LOCAL_AUTHORS
-        self.orders_url = DEFAULT_LOCAL_ORDERS
-        self.payments_url = DEFAULT_LOCAL_PAYMENTS
+        self.payments_url = DEFAULT_LOCAL_PAYMENTS_URL
+        self.orders_url = DEFAULT_LOCAL_ORDERS_URL
+        self.users_url = DEFAULT_LOCAL_USERS_URL
+        self.authors_url = DEFAULT_LOCAL_AUTHORS_URL
         self.redis_host = DEFAULT_LOCAL_REDIS_HOST
         self.redis_port = DEFAULT_LOCAL_REDIS_PORT
 
@@ -101,10 +113,10 @@ class Settings:
         h = host.rstrip("/")
         self.auth_url = f"{h}:5000"
         self.books_url = f"{h}:5001"
-        self.users_url = f"{h}:5002"
-        self.authors_url = f"{h}:5003"
-        self.orders_url = f"{h}:5004"
-        self.payments_url = f"{h}:5005"
+        self.payments_url = f"{h}:5002"
+        self.orders_url = f"{h}:5003"
+        self.users_url = f"{h}:5004"
+        self.authors_url = f"{h}:5005"
         self.redis_host = h.replace("http://", "").replace("https://", "").split(":")[0]
         self.redis_port = DEFAULT_REMOTE_REDIS_PORT
 

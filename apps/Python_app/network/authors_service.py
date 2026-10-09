@@ -1,6 +1,6 @@
 """
 network/authors_service.py
-Cliente para el microservicio de Autores (:5003).
+Cliente para el microservicio de Autores (:5005).
 """
 from config.settings import settings
 from network.api_client import http_client

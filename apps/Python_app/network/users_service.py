@@ -1,6 +1,6 @@
 """
 network/users_service.py
-Cliente para el microservicio de Usuarios (:5002).
+Cliente para el microservicio de Usuarios (:5004).
 """
 from config.settings import settings
 from network.api_client import http_client
